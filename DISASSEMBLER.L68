@@ -1,0 +1,230 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 2/26/2018 1:54:49 PM
+
+00000000                             1  *-----------------------------------------------------------
+00000000                             2  * Title      : Disassembler
+00000000                             3  * Written by : Sean Coulter, Corin Ennis, Antony Mbugua
+00000000                             4  * Date       : Winter 2018
+00000000                             5  * Description: A disassembler program for Motorola 68K source files
+00000000                             6  *-----------------------------------------------------------
+00000000                             7  
+00000000                             8                
+00000000                             9                ***************************************
+00000000                            10                * TODO for initial user input for start/end addresses:
+00000000                            11                *   check if the starting address is odd
+00000000                            12                *   check if first line of data S file contains 36384B50524F47202020323043524541544544204259204541535936384B6D (68kprog created by easy68k in ASCII) so its not x86 or something
+00000000                            13                *   check if user- inputted end address is after program is loaded (ENDed) ?
+00000000                            14                ****************************************
+00000000                            15                       
+00000000                            16              *D1: sentinel exit value
+00000000                            17              *D2: index of MSB
+00000000                            18              *D3: length of user input string
+00000000                            19              *D4: index of pointer to string table
+00000000                            20              *D6: ascii value holding MSB
+00000000                            21              *D7: max valid input
+00000000                            22              
+00000000                            23              
+00000000  =0000000D                 24  CR         EQU   $0D
+00000000  =0000000A                 25  LF         EQU   $0A
+00000000  =00007000                 26  stack_addr EQU   $7000
+00000000  =00001000                 27  start_addr EQU   $1000
+00000000                            28  
+00000000                            29                
+00001000                            30  start         ORG     start_addr             
+00001000  1E3C 0046                 31                MOVE.B  #$46,D7  *max valid input byte in ascii
+00001004  1C3C 0030                 32                MOVE.B  #$30,D6
+00001008                            33                
+00001008                            34                *ascii string 4646464646464646 == hex FFFFFFFF
+00001008                            35                *for each ascii character the user enters, if that character is outside [30,40) (40,46], its an invalid character
+00001008                            36                
+00001008                            37  ******************************************************************************************
+00001008                            38  *display starting information for user, capture start and end addresses, error check on addresses
+00001008                            39      *A2: points to starting address
+00001008                            40      *A3: points to ending address
+00001008                            41      *A4: points to ascii/hex string table
+00001008                            42      
+00001008                            43      *D3: holds the next byte of the user starting address
+00001008                            44      *D3: holds length of user input
+00001008                            45      *D4: offset of string table value
+00001008                            46      
+00001008  4FF8 7000                 47                LEA     stack_addr, SP
+0000100C                            48                
+0000100C  43F9 00003029             49  disp_msg      LEA     display_start,A1  *load intro msg to A1
+00001012  103C 000E                 50                MOVE.B  #14,D0            *indicate output
+00001016  4E4F                      51                TRAP    #15
+00001018                            52                
+00001018  49F9 00003000             53                LEA     string_tbl,A4 *load A4 with the string table
+0000101E                            54                
+0000101E  43F9 000030C2             55                LEA     user_start,A1 *load user input variable address to A1
+00001024  103C 0002                 56                MOVE.B  #2,D0         *indicate saving user input to loaded variable in A1
+00001028  4E4F                      57                TRAP    #15
+0000102A                            58                
+0000102A  B2FC 30C0                 59                CMP.W   #exit_val,A1   *did the user want to quit?
+0000102E  6700 0098                 60                BEQ     done          * yes-quit
+00001032                            61                
+00001032  B2BC 00000008             62                CMP.L   #8,D1         *is the starting address 8 hex digits?
+00001038  6E00 0094                 63                BGT     err           * no-invalid
+0000103C                            64                
+0000103C  1601                      65                MOVE.B  D1,D3         *store length of start address (task #2) in D3
+0000103E                            66                
+0000103E                            67                
+0000103E                            68                
+0000103E                            69  *********************MAKE THIS A SUBROUTINE*************
+0000103E  1419                      70  get_next_byte MOVE.B (A1)+,D2      *move next byte of input address to D2
+00001040  4244                      71                CLR    D4            *reset index offset in string table
+00001042  5303                      72                SUBI.B #1,D3         *decrement the loop counter (length of user string)
+00001044  B63C 00FF                 73                CMP.B  #-1,D3        *have we converted the whole address?
+00001048  6700 0022                 74                BEQ    end_addr      * yes-get the end address
+0000104C  6000 0002                 75                BRA    char_convert
+00001050                            76                
+00001050  B434 4000                 77  char_convert  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in string table
+00001054  6700 000E                 78                BEQ     save_byte      *we found the corresponding hex
+00001058  5444                      79                ADDI    #2,D4          *Next index of string table
+0000105A  B83C 001F                 80                CMP.B   #31,D4         *check if we're outside the table (indicates invalid hex input)
+0000105E  6E00 006E                 81                BGT     err
+00001062  60EC                      82                BRA     char_convert
+00001064                            83  
+00001064  1374 4001 FFFF            84  save_byte     MOVE.B  1(A4,D4.W),-1(A1)              
+0000106A  60D2                      85                BRA     get_next_byte
+0000106C                            86  ***********************************************************      
+0000106C                            87        
+0000106C                            88  ************* by this point, the starting address is valid and stored in A2.*-*********************
+0000106C                            89                
+0000106C  2449                      90  end_addr      MOVEA.L A1,A2            *move starting address to A2
+0000106E  43F9 00003068             91                LEA     display_end,A1
+00001074  103C 000E                 92                MOVE.B  #14,D0   ; comment
+00001078  4E4F                      93                TRAP    #15      ; comment
+0000107A                            94                
+0000107A  43F9 000030C2             95                LEA     user_end,A1
+00001080  103C 0002                 96                MOVE.B  #2,D0    * trap user ending address   
+00001084  4E4F                      97                TRAP    #15
+00001086                            98                
+00001086  B2FC 30C0                 99                CMP.W   #exit_val,A1   *did the user want to quit?
+0000108A  6700 003C                100                BEQ     done          * yes-quit
+0000108E                           101                
+0000108E  B2BC 00000008            102                CMP.L   #8,D1         *is the starting address 8 hex digits?
+00001094  6E00 0038                103                BGT     err           * no-invalid
+00001098                           104                
+00001098  1601                     105                MOVE.B  D1,D3         *store length of start address (task #2) in D3
+0000109A                           106  
+0000109A                           107          
+0000109A                           108  *********************MAKE THIS A SUBROUTINE*************
+0000109A  1419                     109  get_next_byte_e MOVE.B (A1)+,D2      *move next byte of input address to D2
+0000109C  4244                     110                CLR    D4            *reset index offset in string table
+0000109E  5303                     111                SUBI.B #1,D3         *decrement the loop counter (length of user string)
+000010A0  B63C 00FF                112                CMP.B  #-1,D3        *have we converted the whole address?
+000010A4  6700 0022                113                BEQ    data_parse      * yes-get the end address
+000010A8  6000 0002                114                BRA    char_convert_e
+000010AC                           115                
+000010AC  B434 4000                116  char_convert_e  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in string table
+000010B0  6700 000E                117                BEQ     save_byte_e      *we found the corresponding hex
+000010B4  5444                     118                ADDI    #2,D4          *Next index of string table
+000010B6  B83C 001F                119                CMP.B   #31,D4         *check if we're outside the table (indicates invalid hex input)
+000010BA  6E00 0012                120                BGT     err
+000010BE  60EC                     121                BRA     char_convert_e
+000010C0                           122  
+000010C0  1374 4001 FFFF           123  save_byte_e     MOVE.B  1(A4,D4.W),-1(A1)              
+000010C6  60D2                     124                BRA     get_next_byte_e
+000010C8                           125  ***********************************************************      
+000010C8                           126              
+000010C8                           127  
+000010C8                           128  
+000010C8                           129  data_parse   *sht gets real 
+000010C8                           130  
+000010C8                           131  
+000010C8                           132  
+000010C8                           133  
+000010C8                           134  
+000010C8                           135  
+000010C8                           136  
+000010C8                           137  
+000010C8                           138  
+000010C8                           139        
+000010C8  103C 0009                140  done          MOVE.B  #9,D0         *indicate end of simulation
+000010CC  4E4F                     141                TRAP    #15
+000010CE                           142                
+000010CE  43F9 000030A1            143  err           LEA     bad_addr,A1   *load the error msg into A1
+000010D4  103C 000E                144                MOVE.B  #14,D0       *indicate output
+000010D8  4E4F                     145                TRAP    #15
+000010DA  43F9 00003026            146                LEA     nl,A1        *load new line into A1
+000010E0  103C 000E                147                MOVE.B  #14,D0        *indicate output
+000010E4  4E4F                     148                TRAP    #15
+000010E6  4282                     149                CLR.L   D2            *reset msb index for further iterations
+000010E8  6000 FF22                150                BRA     disp_msg      *go back to welcome msg
+000010EC                           151                
+000010EC                           152                
+00003000                           153  data          ORG     $3000
+00003000                           154          
+00003000                           155  *string table for converting user input addresses from ascii to hex      
+00003000= 30 00                    156  string_tbl    DC.B    $30,$0      *{hex,ascii}
+00003002= 31 01                    157                DC.B    $31,$1          
+00003004= 32 02                    158                DC.B    $32,$2 
+00003006= 33 03                    159                DC.B    $33,$3
+00003008= 34 04                    160                DC.B    $34,$4
+0000300A= 35 05                    161                DC.B    $35,$5
+0000300C= 36 06                    162                DC.B    $36,$6
+0000300E= 37 07                    163                DC.B    $37,$7
+00003010= 38 08                    164                DC.B    $38,$8
+00003012= 39 09                    165                DC.B    $39,$9            
+00003014= 41 0A                    166                DC.B    $41,$A
+00003016= 42 0B                    167                DC.B    $42,$B
+00003018= 43 0C                    168                DC.B    $43,$C
+0000301A= 44 0D                    169                DC.B    $44,$D
+0000301C= 45 0E                    170                DC.B    $45,$E
+0000301E= 46 0F                    171                DC.B    $46,$F
+00003020                           172                  
+00003020                           173  *opcode_tbl   DC.B    $6,        *{opcode,destination EA}
+00003020                           174  
+00003020= 01 01                    175  size_tbl      DC.B    1,1        *byte
+00003022= 02 02                    176                DC.B    2,2        *word
+00003024= 03 04                    177                DC.B    3,4        *long
+00003026                           178                  
+00003026                           179                  
+00003026= 0D 0A 00                 180  nl            DC.B    '',CR,LF,0
+00003029= 45 6E 74 65 72 20 ...    181  display_start DC.B    'Enter the starting 32-bit memory address in hex (-1 to quit): ',0
+00003068= 45 6E 74 65 72 20 ...    182  display_end   DC.B    'Enter ending 32-bit memory address in hex (-1 to quit): ',0
+000030A1= 50 6C 65 61 73 65 ...    183  bad_addr      DC.B    'Please enter a valid address',CR,LF,0
+000030C0                           184  
+000030C0= 2D31                     185  exit_val      DC.W    $2D31  *sentinel exit value
+000030C2                           186  
+000030C2                           187  user_start    DS.L    0
+000030C2                           188  user_end      DS.L    0
+000030C2                           189  
+000030C2                           190  
+000030C2                           191  
+000030C2                           192                END     start
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+BAD_ADDR            30A1
+CHAR_CONVERT        1050
+CHAR_CONVERT_E      10AC
+CR                  D
+DATA                3000
+DATA_PARSE          10C8
+DISPLAY_END         3068
+DISPLAY_START       3029
+DISP_MSG            100C
+DONE                10C8
+END_ADDR            106C
+ERR                 10CE
+EXIT_VAL            30C0
+GET_NEXT_BYTE       103E
+GET_NEXT_BYTE_E     109A
+LF                  A
+NL                  3026
+SAVE_BYTE           1064
+SAVE_BYTE_E         10C0
+SIZE_TBL            3020
+STACK_ADDR          7000
+START               1000
+START_ADDR          1000
+STRING_TBL          3000
+USER_END            30C2
+USER_START          30C2
