@@ -95,14 +95,13 @@ loop          MULU    #16,D7
               BRA     loop                           
 set_val       MULU    D5,D7          *ie (hex_val)*16^index
               *ADDA.L  D7,D2
-              ADDA.L  D7,A2          *add this value to register holding the starting address
+              ADDA.L  D7,A5          *add this value to register holding the starting address
               BRA     get_next_byte
 ***********************************************************      
       
-************* by this point, the starting address is valid and stored in D1.*-*********************
+************* by this point, the starting address is valid and stored in A5.*-*********************
               
-end_addr      *ADDA.L  D1,A2   *move the saved address to register A2
-              CLR.L   D1
+end_addr      CLR.L   D1
               LEA     display_end,A1
               MOVE.B  #14,D0   ; comment
               TRAP    #15      ; comment
@@ -134,7 +133,7 @@ char_convert_e  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in s
               CMP.B   #31,D4         *check if we're outside the table (indicates invalid hex input)
               BGT     err
               BRA     char_convert_e
-
+              
 save_byte_e     *MOVE.B  1(A4,D4.W),-1(A1)
               MOVE.B  #1,D7          *d7 holds the scaling factor            
               MOVE.B  D3,D6          *d6 holds the index of the char
@@ -145,21 +144,21 @@ loop_e          MULU    #16,D7
               SUBI    #1,D6
               CMP.B   #0,D6
               BEQ     set_val_e
-              BRA     loop                           
+              BRA     loop_e                          
 set_val_e       MULU    D5,D7          *ie (hex_val)*16^index
               *ADDA.L  D7,D2
-              ADDA.L  D7,A3          *add this value to register holding the ending address
+              ADDA.L  D7,A6          *add this value to register holding the ending address
               BRA     get_next_byte_e
 ***********************************************************      
             
 
-*At this point, A2 holds starting address and A1 holds ending address. Move A1 to A3. A2 and A3 are then the only registers we need to save from previous calculations
-  
+*At this point, A5 holds starting address and A6 holds ending address. 
+              TRAP #15
 data_parse    LEA      opcode_tbl,A4
-              JMP      (A2)
-              MOVE.W   A3,D1
-              CMP.W    A4,D1
+              MOVE.W   (A5),D1
+              CMP.W    (A4),D1
               BEQ      print_code
+              BRA      done
 print_code    LEA      (A4),A1
               MOVE.B   #14,D0
               TRAP     #15              
@@ -167,7 +166,7 @@ print_code    LEA      (A4),A1
 
 
 
-
+              
 
 
       
@@ -217,7 +216,7 @@ display_end   DC.B    'Enter ending 32-bit memory address in hex (-1 to quit): '
 bad_addr      DC.B    'Please enter a valid address',CR,LF,0
 
 exit_val      DC.W    $2D31  *sentinel exit value
-
+              
 user_start    DS.L    0
 user_end      DS.L    0
 
