@@ -31,6 +31,7 @@ start         ORG     start_addr
               MOVE.B  #$46,D7  *max valid input byte in ascii
               MOVE.B  #$30,D6
               
+              
               *ascii string 4646464646464646 == hex FFFFFFFF
               *for each ascii character the user enters, if that character is outside [30,40) (40,46], its an invalid character
               
@@ -56,38 +57,52 @@ disp_msg      LEA     display_start,A1  *load intro msg to A1
               MOVE.B  #2,D0         *indicate saving user input to loaded variable in A1
               TRAP    #15
               
-              CMP.W   #exit_val,A1   *did the user want to quit?
+              CMP.W   #exit_val,A1  *did the user want to quit?
               BEQ     done          * yes-quit
               
               CMP.L   #8,D1         *is the starting address 8 hex digits?
               BGT     err           * no-invalid
               
               MOVE.B  D1,D3         *store length of start address (task #2) in D3
+              CLR     D1
               
-              
-              
+           
 *********************MAKE THIS A SUBROUTINE*************
 get_next_byte MOVE.B (A1)+,D2      *move next byte of input address to D2
               CLR    D4            *reset index offset in string table
               SUBI.B #1,D3         *decrement the loop counter (length of user string)
               CMP.B  #-1,D3        *have we converted the whole address?
-              BEQ    end_addr      * yes-get the end address
+              BEQ    end_addr      * yes-go to next address
               BRA    char_convert
               
 char_convert  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in string table
-              BEQ     save_byte      *we found the corresponding hex
+              BEQ     save_byte    *we found the corresponding hex
               ADDI    #2,D4          *Next index of string table
               CMP.B   #31,D4         *check if we're outside the table (indicates invalid hex input)
               BGT     err
               BRA     char_convert
 
-save_byte     MOVE.B  1(A4,D4.W),-1(A1)              
+save_byte     *MOVE.B  1(A4,D4.W),-1(A1)
+              MOVE.B  #1,D7          *d7 holds the scaling factor            
+              MOVE.B  D3,D6          *d6 holds the index of the char
+              MOVE.B  1(A4,D4.W),D5  *move the hex val to d5
+              CMP.B   #0, D6
+              BEQ     set_val
+loop          MULU    #16,D7
+              SUBI    #1,D6
+              CMP.B   #0,D6
+              BEQ     set_val
+              BRA     loop                           
+set_val       MULU    D5,D7          *ie (hex_val)*16^index
+              *ADDA.L  D7,D2
+              ADDA.L  D7,A2          *add this value to register holding the starting address
               BRA     get_next_byte
 ***********************************************************      
       
-************* by this point, the starting address is valid and stored in A2.*-*********************
+************* by this point, the starting address is valid and stored in D1.*-*********************
               
-end_addr      MOVEA.L A1,A2            *move starting address to A2
+end_addr      *ADDA.L  D1,A2   *move the saved address to register A2
+              CLR.L   D1
               LEA     display_end,A1
               MOVE.B  #14,D0   ; comment
               TRAP    #15      ; comment
@@ -120,19 +135,34 @@ char_convert_e  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in s
               BGT     err
               BRA     char_convert_e
 
-save_byte_e     MOVE.B  1(A4,D4.W),-1(A1)              
+save_byte_e     *MOVE.B  1(A4,D4.W),-1(A1)
+              MOVE.B  #1,D7          *d7 holds the scaling factor            
+              MOVE.B  D3,D6          *d6 holds the index of the char
+              MOVE.B  1(A4,D4.W),D5  *move the hex val to d5
+              CMP.B   #0, D6
+              BEQ     set_val_e
+loop_e          MULU    #16,D7
+              SUBI    #1,D6
+              CMP.B   #0,D6
+              BEQ     set_val_e
+              BRA     loop                           
+set_val_e       MULU    D5,D7          *ie (hex_val)*16^index
+              *ADDA.L  D7,D2
+              ADDA.L  D7,A3          *add this value to register holding the ending address
               BRA     get_next_byte_e
 ***********************************************************      
             
 
-*At this point, A1 holds starting address and A3 holds ending address. These are the only registers we needed to save from previous calculations
+*At this point, A2 holds starting address and A1 holds ending address. Move A1 to A3. A2 and A3 are then the only registers we need to save from previous calculations
   
-data_parse    MOVEA.L  A1,A2         *move ending address to A3           
-              LEA      opcode_tbl,A4
-              JMP      (A3)
+data_parse    LEA      opcode_tbl,A4
+              JMP      (A2)
               MOVE.W   A3,D1
-              CMP
-              
+              CMP.W    A4,D1
+              BEQ      print_code
+print_code    LEA      (A4),A1
+              MOVE.B   #14,D0
+              TRAP     #15              
     
 
 
