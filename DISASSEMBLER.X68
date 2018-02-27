@@ -9,7 +9,7 @@
               ***************************************
               * TODO for initial user input for start/end addresses:
               *   check if the starting address is odd
-              *   check if first line of data S file contains 36384B50524F47202020323043524541544544204259204541535936384B6D (68kprog created by easy68k in ASCII) so its not x86 or something
+              *   //(not sure about this)check if first line of data S file contains 36384B50524F47202020323043524541544544204259204541535936384B6D (68kprog created by easy68k in ASCII) so its not x86 or something
               *   check if user- inputted end address is after program is loaded (ENDed) ?
               ****************************************
                      
@@ -23,20 +23,15 @@
             
 CR         EQU   $0D
 LF         EQU   $0A
-stack_addr EQU   $7000
+stack      EQU   $7000
 start_addr EQU   $1000
-
               
 start         ORG     start_addr             
-              MOVE.B  #$46,D7  *max valid input byte in ascii
-              MOVE.B  #$30,D6
+              *MOVE.B  #$46,D7  *max valid input byte in ascii
+              *MOVE.B  #$30,D6
               
-              
-              *ascii string 4646464646464646 == hex FFFFFFFF
-              *for each ascii character the user enters, if that character is outside [30,40) (40,46], its an invalid character
-              
-******************************************************************************************
-*display starting information for user, capture start and end addresses, error check on addresses
+*----------------*display starting information for user, capture start and end addresses, error check on addresses------------------------------
+*----------------for each ascii character the user enters, if that character is outside [30,40) (40,46], its an invalid character---------------
     *A2: points to starting address
     *A3: points to ending address
     *A4: points to ascii/hex string table
@@ -45,7 +40,7 @@ start         ORG     start_addr
     *D3: holds length of user input
     *D4: offset of string table value
     
-              LEA     stack_addr, SP
+              LEA     stack, SP         *put the stack in the stack pointer
               
 disp_msg      LEA     display_start,A1  *load intro msg to A1
               MOVE.B  #14,D0            *indicate output
@@ -57,104 +52,75 @@ disp_msg      LEA     display_start,A1  *load intro msg to A1
               MOVE.B  #2,D0         *indicate saving user input to loaded variable in A1
               TRAP    #15
               
-              CMP.W   #exit_val,A1  *did the user want to quit?
+              MOVE.W  exit_val,D0
+              CMP.W   user_end,D0  *did the user want to quit?
               BEQ     done          * yes-quit
               
               CMP.L   #8,D1         *is the starting address 8 hex digits?
               BGT     err           * no-invalid
               
               MOVE.B  D1,D3         *store length of start address (task #2) in D3
-              CLR     D1
-              
+              CLR     D1            *clear D1 for use in the folllowing subroutine
+              JSR     conversion    *enter loop to convert ascii string to hex
+              MOVEA.L A6,A5
+              BRA     end_addr      *we've converted the valid string to hex--get the end address now     
            
-*********************MAKE THIS A SUBROUTINE*************
+*********************SUBROUTINE converts user input (ascii) to hex**********************************************
+conversion    MOVEA  #0,A6         *clear the address register being used to store the conversion data
 get_next_byte MOVE.B (A1)+,D2      *move next byte of input address to D2
               CLR    D4            *reset index offset in string table
               SUBI.B #1,D3         *decrement the loop counter (length of user string)
               CMP.B  #-1,D3        *have we converted the whole address?
-              BEQ    end_addr      * yes-go to next address
-              BRA    char_convert
+              BEQ    end_conv      * yes-return from the subroutine
+              BRA    char_convert  * no-convert the next character from ascii -> hex
               
 char_convert  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in string table
               BEQ     save_byte    *we found the corresponding hex
               ADDI    #2,D4          *Next index of string table
               CMP.B   #31,D4         *check if we're outside the table (indicates invalid hex input)
-              BGT     err
-              BRA     char_convert
+              BGT     err            * we're outside the table, so user input character wasn't hex-convertible
+              BRA     char_convert   *check the next string table value
 
-save_byte     *MOVE.B  1(A4,D4.W),-1(A1)
-              MOVE.B  #1,D7          *d7 holds the scaling factor            
+save_byte     MOVE.B  #1,D7          *d7 holds the scaling factor            
               MOVE.B  D3,D6          *d6 holds the index of the char
               MOVE.B  1(A4,D4.W),D5  *move the hex val to d5
-              CMP.B   #0, D6
-              BEQ     set_val
-loop          MULU    #16,D7
-              SUBI    #1,D6
-              CMP.B   #0,D6
-              BEQ     set_val
-              BRA     loop                           
+              CMP.B   #0, D6         *are we at the least signifiacnt digit?
+              BEQ     set_val        * yes-continue with scaling factor ==1
+loop          MULU    #16,D7         *keep taking powers of 16
+              SUBI    #1,D6          *decrese the index counter
+              CMP.B   #0,D6          *have reached the correct power of 16 (index)?
+              BEQ     set_val        * yes-continue with scaling factor ==16^index
+              BRA     loop           * no-get the next power of 16              
 set_val       MULU    D5,D7          *ie (hex_val)*16^index
-              *ADDA.L  D7,D2
-              ADDA.L  D7,A5          *add this value to register holding the starting address
-              BRA     get_next_byte
-***********************************************************      
+              ADDA.L  D7,A6          *add this value to register holding the converted address
+              BRA     get_next_byte  *check if theres any more characters the user entered
+end_conv      RTS
+******************************************************************************************************************  
       
-************* by this point, the starting address is valid and stored in A5.*-*********************
+*------------------- by this point, the starting address is valid and stored in A5.*--------------------------------
               
 end_addr      CLR.L   D1
               LEA     display_end,A1
-              MOVE.B  #14,D0   ; comment
-              TRAP    #15      ; comment
-              
-              LEA     user_end,A1
-              MOVE.B  #2,D0    * trap user ending address   
+              MOVE.B  #14,D0        *indicate display
               TRAP    #15
               
-              CMP.W   #exit_val,A1   *did the user want to quit?
+              LEA     user_end,A1
+              MOVE.B  #2,D0         * trap user ending address   
+              TRAP    #15
+              
+              MOVE.W  exit_val,D0
+              CMP.W   user_end,D0  *did the user want to quit?
               BEQ     done          * yes-quit
               
               CMP.L   #8,D1         *is the starting address 8 hex digits?
               BGT     err           * no-invalid
               
               MOVE.B  D1,D3         *store length of start address (task #2) in D3
+              JSR     conversion    *convert(above) the ending address from ascii to hex
 
-        
-*********************MAKE THIS A SUBROUTINE*************
-get_next_byte_e MOVE.B (A1)+,D2      *move next byte of input address to D2
-              CLR    D4            *reset index offset in string table
-              SUBI.B #1,D3         *decrement the loop counter (length of user string)
-              CMP.B  #-1,D3        *have we converted the whole address?
-              BEQ    data_parse      * yes-get the end address
-              BRA    char_convert_e
+*------------------At this point, A5 holds starting address and A6 holds ending address. --------------------------------
               
-char_convert_e  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in string table
-              BEQ     save_byte_e      *we found the corresponding hex
-              ADDI    #2,D4          *Next index of string table
-              CMP.B   #31,D4         *check if we're outside the table (indicates invalid hex input)
-              BGT     err
-              BRA     char_convert_e
-              
-save_byte_e     *MOVE.B  1(A4,D4.W),-1(A1)
-              MOVE.B  #1,D7          *d7 holds the scaling factor            
-              MOVE.B  D3,D6          *d6 holds the index of the char
-              MOVE.B  1(A4,D4.W),D5  *move the hex val to d5
-              CMP.B   #0, D6
-              BEQ     set_val_e
-loop_e          MULU    #16,D7
-              SUBI    #1,D6
-              CMP.B   #0,D6
-              BEQ     set_val_e
-              BRA     loop_e                          
-set_val_e       MULU    D5,D7          *ie (hex_val)*16^index
-              *ADDA.L  D7,D2
-              ADDA.L  D7,A6          *add this value to register holding the ending address
-              BRA     get_next_byte_e
-***********************************************************      
-            
-
-*At this point, A5 holds starting address and A6 holds ending address. 
-              TRAP #15
-data_parse    LEA      opcode_tbl,A4
+prep_regs     LEA      opcode_tbl,A4
               MOVE.W   (A5),D1
               CMP.W    (A4),D1
               BEQ      print_code
@@ -163,14 +129,21 @@ print_code    LEA      (A4),A1
               MOVE.B   #14,D0
               TRAP     #15              
     
-
-
-
+    
+instr_parse
+start_end     REG      A5/A6
+              MOVEM    start_end,-(SP)  
               
+              MOVEM    (SP)+,start_end
+
+
 
 
       
-done          MOVE.B  #9,D0         *indicate end of simulation
+done          LEA     done_msg,A1
+              MOVE.B  #14,D0
+              TRAP    #15
+              MOVE.B  #9,D0         *indicate end of simulation
               TRAP    #15
               
 err           LEA     bad_addr,A1   *load the error msg into A1
@@ -204,6 +177,12 @@ string_tbl    DC.B    $30,$0      *{hex,ascii}
               DC.B    $46,$F
                 
 opcode_tbl    DC.W    $4E71,'NOP'        *{opcode,destination EA}
+              DC.B    'DATA'             *not a valid opcode
+              
+EA_modes      DC.B    000,$0             *{binary,last hex digit}
+              DC.B    001,$1
+              DC.B    010,$2
+              DC.B    011,$3
 
 size_tbl      DC.B    1,1        *byte
               DC.B    2,2        *word
@@ -216,6 +195,7 @@ display_end   DC.B    'Enter ending 32-bit memory address in hex (-1 to quit): '
 bad_addr      DC.B    'Please enter a valid address',CR,LF,0
 
 exit_val      DC.W    $2D31  *sentinel exit value
+done_msg      DC.B    'done',0
               
 user_start    DS.L    0
 user_end      DS.L    0
@@ -223,6 +203,7 @@ user_end      DS.L    0
 
 
               END     start
+
 
 
 
