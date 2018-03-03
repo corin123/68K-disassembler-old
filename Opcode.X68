@@ -16,6 +16,10 @@ START:                  ; first instruction of program
 *A6 (ending address) 
 *A7 (stack pointer)
         
+        *Opcodes Implemented
+        *- Move.W
+        *- Move.L
+        *- MoveM
       
                                 *Requires the data to be put into D3
         *create a copy of the original value
@@ -138,7 +142,7 @@ NYBBLE_CODE_0000
     CMPI.W #%1100,D3
         BEQ CMPI_CODE
     
-    
+     
     CMPI.W #%1000,D3
         BEQ BLCR_STATIC_CODE
        
@@ -194,17 +198,15 @@ NYBBLE_CODE_0011
 
 *-----------------------[0100]
 NYBBLE_CODE_0100
-*----LEA,NEG
-
-*-----------------------NEG
-        *Get the next Nybble
-        ANDI.W #$F,D3  
-        CMPI.W #%0100,D3       
-                BEQ NEG_CODE
-*-----------------------LEA        
-        CMPI.W #%0100,D3       
-                BEQ LEA_CODE
-                BNE INVALID_DATA
+*----LEA
+*-----------------------LEA 
+        LSL #8, D3 
+        LSR #8, D3
+        LSR #5, D3
+       
+        CMPI.W #$7,D3       
+          BEQ LEA_CODE
+          BNE INVALID_DATA
 *-----------------------[0101]
 NYBBLE_CODE_0101
 *----SUBQ
@@ -531,6 +533,7 @@ mess DC.B 'EQUAL',0
 m DC.B 'AFTER',0
 BYTECODE 
     END    START        ; last line of source
+
 
 
 
