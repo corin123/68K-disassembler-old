@@ -23,7 +23,7 @@ START:                  ; first instruction of program
       
                                 *Requires the data to be put into D3
         *create a copy of the original value
-        MOVE.W #%0100100001000000, A5 
+        MOVE.W #%0100000111000000, A5 
 
         *Copy value to manipulate in D3  
         MOVE.W A5, D3
@@ -134,6 +134,7 @@ START:                  ; first instruction of program
 NYBBLE_CODE_0000
 *----ORI,CMPI,BCLR
     MOVE.W A5, D3
+    
     LSR #4, D3
     
     CMPI.W #%0000,D3
@@ -163,6 +164,7 @@ NYBBLE_CODE_0000
 NYBBLE_CODE_0001
 *----
 
+        MOVE.W A5, D3 
 *-----------------------[0010]
 NYBBLE_CODE_0010
 *----MOVE.L,MOVEA.L
@@ -198,27 +200,47 @@ NYBBLE_CODE_0011
 
 *-----------------------[0100]
 NYBBLE_CODE_0100
-*----LEA
+*----LEA, MOVEM
+
+        MOVE.W A5, D3 
 *-----------------------LEA 
-        LSL #8, D3 
+        
+        LSL #7, D3 
         LSR #8, D3
         LSR #5, D3
        
         CMPI.W #$7,D3       
           BEQ LEA_CODE
-          BNE INVALID_DATA
+          
+*-----------------------MOVEM
+
+        LSL #6, D3
+        LSR #8, D3
+        LSR #5, D3
+        
+        CMPI.W #$1,D3
+            BEQ MOVEM_CODE
+            BNE INVALID_DATA
+          
 *-----------------------[0101]
 NYBBLE_CODE_0101
 *----SUBQ
-
-*-----------------------SUBQ        
-        CMPI.W #%0101,D3       
-                BEQ SUBQ_CODE
+        MOVE.W A5, D3 
+*-----------------------SUBQ  
+        
+        LSL #7, D3
+        LSR #8, D3
+        LSR #7, D3
+        
+        CMPI.W #$1,D3       
+            BEQ SUBQ_CODE
+            BNE INVALID_DATA
 
 *-----------------------[0110]
 NYBBLE_CODE_0110
 *----BCC,BRA
 
+        MOVE.W A5, D3 
 *-----------------------BCC         
         CMPI.W #%0110,D3       
                 BEQ BCC_CODE
@@ -226,45 +248,46 @@ NYBBLE_CODE_0110
 *-----------------------[0111]
 NYBBLE_CODE_0111
 *----
+        MOVE.W A5, D3 
 
 *-----------------------[1000]
 NYBBLE_CODE_1000
 *----DIVS,OR
-
+        MOVE.W A5, D3 
+        
+        LSL #7, D3
+        LSR #8, D3
+        LSR #5, D3
+*-----------------------DIVS.W
+         CMPI.W #$7,D3       
+           BEQ DIVS_W_CODE
+   
 *-----------------------OR        
-        CMPI.W #%1000,D3       
-                BEQ OR_CODE 
+            BNE OR_CODE
 
 *-----------------------[1001]
 NYBBLE_CODE_1001
-*----SUB, MOVEM
+*----SUB
 
+*-----------------------SUB
         MOVE.W A5, D3
         
-        LSR #8,D3
+        LSR #8,D3       *MIGHT NOT BE NEEDED AS ITS ALREADY 1001
         LSR #3, D3
         
         CMPI #$9 ,D3
-        BNE SUB_CODE
-        
-        LSR #8, D3
-        LSR #1, D3
-        
-        LSL #8, D3
-        LSL #7, D3
-       
-*-----------------------SUB        
-        CMPI.W #%1001,D3       
-                BEQ SUB_CODE
-
+            BEQ SUB_CODE
+            BNE INVALID_DATA
+            
 *-----------------------[1010]
 NYBBLE_CODE_1010
 *----
-
+        MOVE.W A5, D3 
 *-----------------------[1011]
 NYBBLE_CODE_1011
 *----EOQ,CMP
 
+        MOVE.W A5, D3 
 *-----------------------CMP         
         CMPI.W #%1011,D3       
                 BEQ CMP_CODE
@@ -276,23 +299,27 @@ NYBBLE_CODE_1011
 *-----------------------[1100]
 NYBBLE_CODE_1100
 *----MULS
-
-*-----------------------MULS        
-        CMPI.W #%1100,D3       
-                BEQ MULS_CODE
-
+        MOVE.W A5, D3 
+*-----------------------MULS  
+        LSL #7, D3  *look for the [111]
+        LSR #8, D3
+        LSR #5, D3   
+   
+        CMPI.W #$7,D3       
+           BEQ MULS_CODE
+           BNE INVALID_DATA 
 *-----------------------[1101]
 NYBBLE_CODE_1101
 *----ADD,ADDA
-
+        *MOVE.W A5, D3 
 *-----------------------ADD_OR_ADDA       
-        CMPI.W #%1101,D3       
+        CMPI.W #$D,D3       
                 BEQ ADD_OR_ADDA_CODE 
 
 *-----------------------[1110]
 NYBBLE_CODE_1110
 *----ROR,ROL,LSR,LSL,ASR,ASL
-
+        MOVE.W A5, D3 
 *-----------------------ROR/ROL         
         CMPI.W #%1110,D3       
                 BEQ ROR_OR_ROL_CODE
@@ -300,7 +327,7 @@ NYBBLE_CODE_1110
 *-----------------------[1111]
 NYBBLE_CODE_1111
 *----
-
+        MOVE.W A5, D3 
 
 
 
@@ -384,7 +411,7 @@ MOVEA_L_CODE
         RTS
 
 MOVEA_L_MESS DC.B 'MOVEA.L INSTRUCTION',0
-*-------------------------------------ADD
+*-------------------------------------ADD_OR_ADDA
 ADD_OR_ADDA_CODE
         LEA ADD_OR_ADDAMESS, A1
         MOVE #14, D0
@@ -440,44 +467,113 @@ BLCR_STATIC_CODE
 BLCR_STATICMESS DC.B 'BLCR_STATIC INSTRUCTION',0  
 *-------------------------------------SUB
 SUB_CODE
-
-*-------------------------------------SUBQ
-SUBQ_CODE
-
-*-------------------------------------MULS
-MULS_CODE
-
-*-------------------------------------DIVS
-DIVS_CODE
-
-*-------------------------------------LEA
-LEA_CODE
-
-*-------------------------------------OR
-OR_CODE
-
-*-------------------------------------ORI
-ORI_CODE
-
-*-------------------------------------NEG
-NEG_CODE
-
-        LEA NEGMESS, A1
+        LEA SUB_MESS, A1
         MOVE #14, D0
         TRAP #15
         RTS
 
-NEGMESS DC.B 'NEG INSTRUCTION',0
+SUB_MESS DC.B 'SUB INSTRUCTION',0
+*-------------------------------------SUBQ
+SUBQ_CODE
+       
+        LEA SUBQ_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+SUBQ_MESS DC.B 'SUBQ INSTRUCTION',0
+*-------------------------------------MULS
+MULS_CODE
+
+       
+        LEA MULS_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+MULS_MESS DC.B 'MULS INSTRUCTION',0
+*-------------------------------------DIVS.W
+DIVS_W_CODE
+
+        LEA DIVS_W_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+DIVS_W_MESS DC.B 'DIVS.W INSTRUCTION',0
+
+*-------------------------------------DIVS.L
+DIVS_L_CODE
+
+        LEA DIVS_L_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+DIVS_L_MESS DC.B 'DIVS.L INSTRUCTION',0
+*-------------------------------------LEA
+LEA_CODE
+
+        LEA LEA_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+LEA_MESS DC.B 'LEA INSTRUCTION',0
+*-------------------------------------OR
+OR_CODE
+        LEA OR_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+OR_MESS DC.B 'OR INSTRUCTION',0
+*-------------------------------------ORI
+ORI_CODE
+
+        LEA ORI_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+ORI_MESS DC.B 'ORI INSTRUCTION',0
+*-------------------------------------NEG
+NEG_CODE
+
+        LEA NEG_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+NEG_MESS DC.B 'NEG INSTRUCTION',0
 
 *-------------------------------------EOR
 EOR_CODE
 
+        LEA EOR_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+EOR_MESS DC.B 'EOR INSTRUCTION',0
 *-------------------------------------LSR
 LSR_CODE
 
+        LEA LSR_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+LSR_MESS DC.B 'LSR INSTRUCTION',0
 *-------------------------------------LSL
 LSL_CODE
 
+        LEA LSL_MESS, A1
+        MOVE #14, D0
+        TRAP #15
+        RTS
+
+LSL_MESS DC.B 'LSL INSTRUCTION',0
 *-------------------------------------ASR
 ASR_CODE
 
