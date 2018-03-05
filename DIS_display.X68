@@ -1,3 +1,11 @@
+* do this:
+*   LEA <name>,INST_NAME    and <name> is saved to INST_NAME
+
+*   eg  LEA   JSR,INST_NAME
+
+*dont do 4 letter words yet
+
+
 
 disp_instr    LEA     addr_sign,A1
               MOVE.B  #14,D0
@@ -12,7 +20,7 @@ disp_instr    LEA     addr_sign,A1
               TRAP    #15
               
               LEA     INST_NAME,A1  *move the (assembly) name of this instruction into A1
-              MOVE.B  #1,D0
+              MOVE.B  #14,D0
               TRAP    #15
               
               LEA     space,A1
@@ -27,42 +35,43 @@ disp_instr    LEA     addr_sign,A1
 
 
 
-MOVE          DC.B    'MOVE',0
-MOVEA         DC.B    'MOVEA',0
-MOVEM         DC.B    'MOVEM',0
-LEA           DC.B    'LEA',0
-NEG           DC.B    'NEG',0 
-JSR           DC.B    'JSR',0
-RTS           DC.B    'RTS',0
-NOP           DC.B    'NOP',0
-ADD           DC.B    'ADD',0
-ADDA          DC.B    'ADDA',0
-ORI           DC.B    'ORI',0
-BCLR          DC.B    'BCLR',0
-CMPI          DC.B    'CMPI',0
-EOR           DC.B    'EOR',0
-CMP           DC.B    'CMP',0
-LSR           DC.B    'LSR',0
-LSL           DC.B    'LSL',0
-ASR           DC.B    'ASR',0
-ASL           DC.B    'ASL',0
-ROL           DC.B    'ROL',0
-ROR           DC.B    'ROR',0
-BCS           DC.B    'BCS',0
-BGE           DC.B    'BGE',0
-BLT           DC.B    'BLT',0
-BVC           DC.B    'BVC',0
-BRA           DC.B    'BRA',0
-SUB           DC.B    'SUB',0
-SUBQ          DC.B    'SUBQ',0
-MULS          DC.B    'MULS',0
-DIVS          DC.B    'DIVS',0
-OR            DC.B    'OR',0
-INV           DC.B    'DATA',0
+MOVE          DC.L    'MOVE',0
+MOVEA         DC.L    'MOVEA',0
+MOVEM         DC.L    'MOVEM',0
+LEA           DC.L    'LEA',0
+NEG           DC.L    'NEG',0 
+JSR           DC.L    'JSR',0
+RTS           DC.L    'RTS',0
+NOP           DC.L    'NOP',0
+ADD           DC.L    'ADD',0
+ADDA          DC.L    'ADDA',0
+ORI           DC.L    'ORI',0
+BCLR          DC.L    'BCLR',0
+CMPI          DC.L    'CMPI',0
+EOR           DC.L    'EOR',0
+CMP           DC.L    'CMP',0
+LSR           DC.L    'LSR',0
+LSL           DC.L    'LSL',0
+ASR           DC.L    'ASR',0
+ASL           DC.L    'ASL',0
+ROL           DC.L    'ROL',0
+ROR           DC.L    'ROR',0
+BCS           DC.L    'BCS',0
+BGE           DC.L    'BGE',0
+BLT           DC.L    'BLT',0
+BVC           DC.L    'BVC',0
+BRA           DC.L    'BRA',0
+SUB           DC.L    'SUB',0
+SUBQ          DC.L    'SUBQ',0
+MULS          DC.L    'MULS',0
+DIVS          DC.L    'DIVS',0
+OR            DC.L    'OR',0
+INV           DC.L    'DATA',0
               
 SIZEb         DC.B    '.B',0
 SIZEw         DC.B    '.W',0
 SIZEl         DC.B    '.L',0
+
 *~Font name~Courier New~
 *~Font size~10~
 *~Tab type~1~
