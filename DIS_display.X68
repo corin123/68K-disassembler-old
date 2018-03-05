@@ -1,7 +1,7 @@
 * do this:
-*   LEA <name>,INST_NAME    and <name> is saved to INST_NAME
+*   move.l  <name>,INST_NAME    and <name> is saved to INST_NAME
 
-*   eg  LEA   JSR,INST_NAME
+*   eg  move.l   JSR,INST_NAME
 
 *dont do 4 letter words yet
 
@@ -71,6 +71,7 @@ INV           DC.L    'DATA',0
 SIZEb         DC.B    '.B',0
 SIZEw         DC.B    '.W',0
 SIZEl         DC.B    '.L',0
+
 
 *~Font name~Courier New~
 *~Font size~10~
