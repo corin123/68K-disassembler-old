@@ -11,7 +11,7 @@
               
 *something to be aware of:
 * -for some instructions 68k will change the execution type without telling you e.g:
-*         ADD <immediate>, <ea> 
+*         ADD <immediate>, <ea>
 *         uses the ADDQ, which is an entirely different opcode
 
 * MOVE.B  'ASCIISTRING',(A5) is a valid opcode (wut)
@@ -39,8 +39,7 @@ stack      EQU   $7000
 START:        LEA      $600,A5            *start addr (TEST)
               LEA      $700,A6            *end addr (TEST)
               LEA      stack,SP
-              
-              
+                         
 prep          CMPA.L   A5,A6              *have we read from start-end?
               BLT      done               * yes-end
               LEA      hex_1,A4           *pointer to hex_1 table in A4
@@ -82,11 +81,16 @@ inst_parse    CMP.B   #1,D1            *based on the first digit, decide how to 
               BEQ     _8_handler
 
 *The following functions determine where to go if the first hex value is shared between instructions             
-*---------------             
-_1_handler
+*---------------   
+*MOVE.B, MOVEA.B(inv)        
+_1_handler    CLR.B   D1
+              ROL.L   #3,D1
+              MOVE.L  D1,D2
+              CLR.B   D2
+              ROL.L   #3,D2
 
 *--------------- 
-*--------------- 
+*---------------
 _3_handler
 
 *--------------- 
@@ -95,7 +99,26 @@ _2_handler
 
 *--------------- 
 *--------------- 
-_4_handler
+_4_handler    CMP.W   #$4E71,D1        *is it nop
+              BEQ     nop_handler      * its nop
+              CMP.W   #$4E75,D1        *is it rts
+              *BEQ     rts_handler     * its rts 
+              CLR.B   D1               *get byte space ready for next digit
+              ROL.L   #4,D1            *get the next digit
+              CMP.B   #$E,D1           *is the next digit E (but we know its not rts,nop)
+              BEQ     jsr_handler      * its jsr
+              *now its either movem,lea,neg
+              MOVE.L  D1,D2            *make a copy
+              CLR.B   D2
+              ROL.L   #2,D2            *save bits of 3rd digit to d2
+              MOVE.L  D2,D3            *make another copy
+              CMP.B   #3,D2            *if its 11, not neg (can only be 00,01,10)
+              BEQ     _4_not_neg       * not 11- either lea or movem
+              BRA     _4_continue      * still undetermined (lea,movem, or neg)
+_4_not_neg    LSL.L   #1,D2            *lea and movem differentiated by current MSB        
+              BCS     lea_handler      * carry set- lea
+              *BRA     movem_handler    * carry not set-movem
+_4_continue   LSL.L   #1,D2
 
 *--------------- 
 *--------------- 
@@ -104,8 +127,8 @@ _13_handler     ROL.L   #4,D1
                 CLR.B   D2
                 ROL.L   #2,D2
                 CMP.B   #3,D2
-                *BEQ     adda_handler
-                *BRA     add_handler
+                BEQ     adda_handler
+                BRA     add_handler
 
 *--------------- 
 *--------------- 
@@ -118,8 +141,9 @@ _0_handler      LSR.B #4,D1
 
 *--------------- 
 *--------------- 
-_11_handler     ROL.L #4,D1
-                LSR.B #1,D1
+_11_handler     CLR.B D1          
+                ROL.L #4,D1    *get next hex digit
+                LSR.B #1,D1    * eor and cmp can be differentiated by lsb in 2nd digit. check carry
                 BCS   eor_handler
                 BRA   cmp_handler
 
@@ -132,14 +156,23 @@ _8_handler      ROL.L   #4,D1
                 CMP.B   #3,D2
                * BEQ     divsw_handler
                * BRA     or_handler
-
+               
+*--------------- 
 *--------------- 
 
 *we can go directly to the function since the first hex val maps directly to an instruction
-get_data      CMP.W   $4E71,D2            *is it nop
-              BEQ     nop_handler         * its nop
-              
-              
+get_data      CMP.B   #6,D1
+              BEQ     bcc_handler
+              CMP.B   #$E,D1
+              BEQ     _shift_roll_handler
+              CMP.B   #9,D1
+              *BEQ    sub_handler
+              CMP.B   #5,D1
+              *BEQ     subq_handler
+              CMP.B   #$C,D1
+              *BEQ     muls_handler
+*----------------------------------------------------------------------------
+*----------------------------------------------------------------------------              
 *----------------------------------------------------------------------------
 *nop_handler
 *handles 'NOP'
@@ -156,6 +189,64 @@ nop_handler   MOVEA.W A5,A2         *store the address of this word instruction 
 *----------------------------------------------------------------------------
 
 
+*----------------------------------------------------------------------------
+*adda_handler
+*handles 'ADDA'
+
+adda_handler    LSR.B  #1,D1        *send the size bit to carry
+                BCS    adda_word_handler    *carry is set->ADDA.W
+                BRA    adda_long_handler    *carry not set->ADDA.L
+                
+adda_word_handler   *save .w 
+                BRA adda_save_data
+adda_long_handler   *save .l 
+                BRA adda_save_data
+
+                
+adda_save_data  MOVE.B D1,OP_NAMES       *move the 3 An bits
+                   CLR.B  D1                *done with second 4 bits
+                   ROL.L  #2,D1             *move and clear size bits-- we already know them
+                   CLR.B  D1
+                   ROL.L  #6,D1             *get 6 EA bits
+                          
+
+* /adda_handler
+*----------------------------------------------------------------------------
+
+*----------------------------------------------------------------------------
+*add_handler
+*handles 'ADD'
+
+add_handler    LSR.B  #1,D1              *isolate direction bit
+               BCS    add_right_handler  *<ea> + Dn -> <ea>
+               BRA    add_left_handler   *Dn + <ea> -> Dn
+               
+add_right_handler   *adjust operands ^
+                    BRA  save_data_add
+
+add_left_handler    *adjust operands ^
+                    BRA  save_data_add
+                    
+add_byte_handler    *move .b to opnames
+
+add_word_handler    *move .w to opnames
+
+add_long_handler    *move .l to opnames
+
+save_data_add       MOVE.L D1,OP_NAMES      *save Dn bits
+                    CLR.B  D1
+                    ROL.L  #2,D1            *get size bits in byte position
+                    CMP.B  #1,D1            *whats the size of the add?
+                    BLT    add_byte_handler
+                    BGT    add_long_handler
+                    BEQ    add_word_handler
+                    
+add_get_ea          ROL.L  #6,D1            *get EA bits
+
+* /add_handler
+*----------------------------------------------------------------------------
+
+
 *-----------------------------------------------------------------------------
 *bcc_handler
 *handles 'BCS','BGE','BLT','BVC','BRA'
@@ -166,7 +257,9 @@ nop_handler   MOVEA.W A5,A2         *store the address of this word instruction 
 *A4: holds the pointer to bcc_tbl
 *A5: holds the current address of this instruction
 
-bcc_handler   MOVE.B  D1,D3         *copy condition value to D3
+bcc_handler   CLR.B   D1
+              ROL.L   #4,D1
+              MOVE.B  D1,D3         *copy condition value to D3
               LEA     bcc_tbl,A4    *A4 now points to the bcc_tbl
 bcc_cond      CMP.B   #-1,(A4)      *have we reached the end of the table
               BEQ     err           * yes-invalid branch
@@ -201,15 +294,15 @@ bra_handler   MOVE.L  BRA,INST_NAME
               
 bcc_dispm     CLR.B   D1            *now find the displacement- (A5 +- last 2 nibbles)
               ROL.L   #8,D1         *get the last 2 nibbles
-              MOVE.L  A5,D4         *copy current address to D4
+              MOVE.L  (A5),D4       *copy current address to D4. **Bcc takes up a word, move it forward             
               ADDI.B  #2,D4         *and get to where the PC is
-              ADD.L   D4,D1         *calculate displacement address
+              SUB.L   D1,D4         *calculate displacement address
               
-              MOVE.L  D1,OP_NAMES   *store the displacement address in ops_msg
+              MOVE.L  D4,OP_NAMES   *store the displacement address in ops_msg
               ADDA    #2,A5         *all Bcc took up a word- set A5 to the next instruction
               
-              CLR     D3            *clear registers used in the Bcc subroutine
-              CLR     D4
+              CLR.L   D3            *clear registers used in the Bcc subroutine
+              CLR.L   D4
                          
               BRA     disp_instr
               
@@ -229,7 +322,9 @@ bcc_dispm     CLR.B   D1            *now find the displacement- (A5 +- last 2 ni
  *D6: holds invalid destination flag
  *D7: holds invalid source flag
  
-_shift_roll_handler  MOVE.B   D1,D2
+_shift_roll_handler  CLR.B    D1
+                     ROL.L    #4,D1
+                     MOVE.B   D1,D2
                      ASR.B    #1,D2          *set the carry to be the direction of this shift/rotate
                      BCS      _left_handler  * carry is set- its leftwards
                      BRA      _right_handler * carry is set- rightwards
@@ -369,6 +464,9 @@ save_srh_data        MOVE.L   D1,D2          *recopy D1 to D2
                      
                      *load source bits to a2
                      *load dest bits to a3
+                     
+                     ADDA     #2,A5
+                     
                      RTS
                      
 prep_srh_disp        BRA      disp_instr             
@@ -386,18 +484,16 @@ prep_srh_disp        BRA      disp_instr
  *D3: holds operation size (b,w,l)
  *D4: holds EA info (mode,register)
  
-eor_handler         MOVE.L   D1,D2
-                    CLR.B    D2
-                    ROL.L    #3,D2        *isolate the data register number in the byte of D2
-                    MOVE.L   D2,D3
-                    CLR.B    D3
-                    ROL.L    #3,D3        *isolate the opmode in the byte of D3
-                    MOVE.L   D3,D4
-                    ROL.L    #8,D4        *isolate the EA mode and register in D4
+eor_handler         MOVE.B   D1,D2        *copy data register number in d1 to d2
+                    CLR.B    D1
+                    ROL.L    #2,D1         
+                    MOVE.B   D1,D3        *save size bits to d3         
+                    CLR.B    D1 
+                    ROL.L    #6,D1        *save EA bits to d1
                     
 * /eor_handler
 *-----------------------------------------------------------------------------
-
+                    
 
 *-----------------------------------------------------------------------------
 * cmp_handler
@@ -409,18 +505,18 @@ eor_handler         MOVE.L   D1,D2
  *D3: holds operation size (b,w,l)
  *D4: holds EA info (mode,register)
 
-cmp_handler         MOVE.L   D1,D2
-                    CLR.B    D2
-                    ROL.L    #3,D2        *isolate the data register number in the byte of D2
-                    MOVE.L   D2,D3
-                    CLR.B    D3
-                    ROL.L    #3,D3        *isolate the opmode in the byte of D3
-                    MOVE.L   D3,D4
-                    ROL.L    #8,D4        *isolate the EA mode and register in D4
-
+cmp_handler         MOVE.B   D1,D2        *save Dn bits to D2
+                    CLR.B    D1           *ready byte position of D1
+                    ROL.L    #2,D1        *isolate size bits
+                    MOVE.B   D1,D3        *save size bits to D2
+                    CLR.B    D1           *ready byte position of D1
+                    ROL.L    #6,D1        *isolate EA bits
 
 
 * /cmp_handler
+*-----------------------------------------------------------------------------
+
+
 *-----------------------------------------------------------------------------
 * cmpi_handler
 * handles cmpi
@@ -494,8 +590,8 @@ lea_handler       LSR.B     #1,D1          *isolate register bits in D1
                   ROL.L     #2,D1
                   CLR.B     D1
                   ROL.L     #6,D1          *shift EA mode and register to the byte of D1
-                 
-
+                  
+                  
 * /lea_handler
 *-----------------------------------------------------------------------------
 
@@ -519,8 +615,9 @@ neg_handler       CLR.B    D1              *clear hardcoded bits
 *-----------------------------------------------------------------------------
 *jsr_handler
 
-jsr_handler      
-                 CLR.B D1
+jsr_handler       ROL.L   #2,D1
+                  CLR.B   D1        *we already know its jsr. get rid of hardcoded bits
+                  ROL.L   #6,D1     *save EA bits into D1
 
 * /jsr_handler
 *-----------------------------------------------------------------------------
@@ -546,14 +643,18 @@ disp_instr    LEA     addr_sign,A1
               MOVE.B  #14,D0
               TRAP    #15
               
-              LEA     OP_NAMES,A1    *move the name of operands into A1
-              MOVE.B  #0,D0
+              MOVE.L  OP_NAMES,D1    *move the name of operands into A1
+              MOVE.B  #3,D0
               TRAP    #15
-                    
+              
+              LEA     nl,A1
+              MOVE.B  #14,D0
+              TRAP    #15
+              
               BRA     prep
                    
                    
-err           LEA     INST_NAME,A1   *load the error msg into A1
+err           LEA     imm_sign,A1   *load the error msg into A1
               MOVE.B  #14,D0       *indicate output
               TRAP    #15
               LEA     nl,A1        *load new line into A1
@@ -568,7 +669,7 @@ done          LEA     done_msg,A1
               TRAP    #15
               MOVE.B  #9,D0         *indicate end of simulation
               TRAP    #15
-           
+              
               
 data          ORG     $2000
                                                    
@@ -580,19 +681,18 @@ data          ORG     $2000
 hex_1         DC.B    $01,$01  * 'MOVE.B','MOVEA.B'
               DC.B    $03,$01  * 'MOVE.W','MOVEA.W'
               DC.B    $02,$01  * 'MOVEA.L','MOVEA.L'
-              DC.B    $04,$01  * 'MOVEM','LEA','NEG','JSR','RTS','NOP','DIVS(long)'
+              DC.B    $04,$01  * 'MOVEM','LEA','NEG','JSR','RTS','NOP'
               DC.B    $0D,$01  * 'ADD','ADDA'
               DC.B    $00,$01  * 'ORI','BCLR','CMPI'
               DC.B    $0B,$01  * 'EOR','CMP'
-              DC.B    $0E,$01  * 'LSR','LSL','ASR','ASL','ROL','ROR'   
-              DC.B    $06,$01  * Bcc('BCS','BGE','BLT','BVC','BRA') 
+              DC.B    $0E,$00  * 'LSR','LSL','ASR','ASL','ROL','ROR'   
+              DC.B    $06,$00  * Bcc('BCS','BGE','BLT','BVC','BRA') 
               DC.B    $09,$00  * 'SUB'
               DC.B    $05,$00  * 'SUBQ'
               DC.B    $0C,$00  * 'MULS'
               DC.B    $08,$01  * 'OR','DIVS(word)'
-              DC.B    -1,-1    * invalid-first hex val is not one in the table above  
-              
-     
+              DC.B    -1,-1    * invalid-first hex val is not one in the table above
+
 MOVEA         DC.L    'MOVEA',0
 MOVEM         DC.L    'MOVEM',0              
 MOVE          DC.L    'MOVE',0
@@ -625,12 +725,12 @@ MULS          DC.L    'MULS',0
 DIVS          DC.L    'DIVS',0
 OR            DC.L    'OR',0
 INV           DC.L    'DATA',0
+               
+SIZEB         DC.W    '.B',0
+SIZEW         DC.W    '.W',0
+SIZEL         DC.W    '.L',0
               
-SIZES    DC.W    '.B',0
-         DC.W    '.W',0
-         DC.W    '.L',0
-              
-regs     DC.B    'D0','D1','D2','D3','D4','D5','D6','D7','A0','A1','A2','A3','A4','A5','A6','A7','SP'
+regs          DC.B    'D0','D1','D2','D3','D4','D5','D6','D7','A0','A1','A2','A3','A4','A5','A6','A7','SP'
               
               
  
@@ -640,7 +740,7 @@ bcc_tbl       DC.B    %0101 *BCS
               DC.B    %1101 *BLT
               DC.B    %1000 *BVC
               DC.B    %0000 *BRA     
-              DC.B    -1      *invalid branch type
+              DC.B    -1    *invalid branch type
 
 shift_tbl     DC.B    %000
               DC.B    %001
@@ -669,7 +769,12 @@ done_msg      DC.B    'done',0
 nl            DC.B    '',CR,LF,0
 
 _end
-         END     start
+              END     start
+
+
+
+
+
 
 
 
