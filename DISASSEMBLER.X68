@@ -1,9 +1,9 @@
-*-----------------------------------------------------------
-* Title      : Disassembler
-* Written by : Sean Coulter, Corin Ennis, Antony Mbugua
-* Date       : Winter 2018
-* Description: A disassembler program for Motorola 68K source files
-*-----------------------------------------------------------
+*-----------------------------------------------------------------------------------------------
+*                                  Disassembler program
+*               Written by : Sean Coulter, Corin Ennis, Antony Mbugua
+*               Date       : Winter 2018
+*               Description: A disassembler program for Motorola 68K source files
+*-----------------------------------------------------------------------------------------------
 
  *notes:
 * -an instruction we dont need to know could be a false positive when parsing the hex_1 table
@@ -24,9 +24,7 @@
               ***************************************
               * TODO for initial user input for start/end addresses:
               *   check if the starting address is odd
-              *   //(not sure about this)check if first line of data S file contains 36384B50524F47202020323043524541544544204259204541535936384B6D (68kprog created by easy68k in ASCII) so its not x86 or something
               *   check if user- inputted end address is after program is loaded (ENDed) ?
-              *   odd address inputted
               ****************************************
                      
             *D1: sentinel exit value
@@ -117,7 +115,7 @@ _2_handler
 _4_handler    CMP.W   #$4E71,D1        *is it nop
               BEQ     nop_handler      * its nop
               CMP.W   #$4E75,D1        *is it rts
-              *BEQ     rts_handler     * its rts 
+              BEQ     rts_handler     * its rts
               CLR.B   D1               *get byte space ready for next digit
               ROL.L   #4,D1            *get the next digit
               CMP.B   #$E,D1           *is the next digit E (but we know its not rts,nop)
@@ -178,11 +176,11 @@ get_data      CMP.B   #6,D1
               CMP.B   #$E,D1
               BEQ     _shift_roll_handler
               CMP.B   #9,D1
-              *BEQ    sub_handler
+              BEQ     sub_handler
               CMP.B   #5,D1
-              *BEQ     subq_handler
+              BEQ     subq_handler
               CMP.B   #$C,D1
-              *BEQ     muls_handler
+              BEQ     muls_handler
 *----------------------------------------------------------------------------
 *----------------------------------------------------------------------------              
 *----------------------------------------------------------------------------
@@ -813,10 +811,82 @@ divsw_handler   MOVE.L DIV,INST_NAME
 *movem_handler
 *handles 'MOVEM'
 
-movem_handler   
+movem_handler  MOVE.L  MOV,INST_NAME
+               MOVE.L  EM,INST_NAME_EXT
+               CMP.B   #$8,D1
+               BEQ     movem_dn
+movem_an       MOVE.B  D1,D2
+               CLR.B   D1
+               LSL.L   #2,D1
+               BCS     movem_long
+               
+movem_word     MOVE.L  SIZEW,SIZECODE
+               BRA     movem_ea
+movem_long     MOVE.L  SIZEL,SIZECODE
+               BRA     movem_ea
+
+movem_dn       CLR.B   D1
+               LSL.L   #2,D1
+               BCS     movem_long
+               BRA     movem_word
+
+movem_ea       JSR     disp_instr
+               CLR.B   D1
+               ROL.L   #3,D1
+               MOVE.L  D1,D3
+               JSR     SET_EA
+               BRA     prep
+
+* /movem_handler
 *-----------------------------------------------------------------------------
 
-SET_EA      *MOVEM.L  s_reg,-(SP)     
+*-----------------------------------------------------------------------------
+* rts_handler
+* handles 'RTS'
+
+rts_handler    CLR.L  D1
+               MOVE.L RTS,INST_NAME
+               JSR    disp_instr
+               BRA    prep
+
+* /rts_handler
+*-----------------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------------
+*sub_handler
+* handles 'SUB'
+
+sub_handler         CLR.B   D1
+                    ROL.L   #4,D1
+
+* /sub_handler
+*-----------------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------------
+*subq_handler
+* handles 'SUBQ'
+
+subq_handler       CLR.B   D1
+                   ROL.L   #4,D1
+
+* /subq_handler
+*-----------------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------------
+*muls_handler
+* handles 'MULS'
+
+muls_handler      CLR.B   D1
+                  ROL.L   #4,D1
+
+*/muls_handler
+*-----------------------------------------------------------------------------
+
+SET_EA      *MOVEM.L  s_reg,-(SP)  
+   
             *Dn
             CMPI.B #$0, D3           *Compares if its 000
                 
@@ -1235,7 +1305,7 @@ hex_1         DC.B    $01,$01  * 'MOVE.B','MOVEA.B'
 
 *MOVEA         DC.L    'MOVEA',0
 *MOVEM         DC.L    'MOVEM',0              
-*MOVE          DC.L    'MOVE',0
+MOV           DC.L    'MOV',0
 LEA           DC.L    'LEA',0
 NEG           DC.L    'NEG',0 
 JSR           DC.L    'JSR',0
@@ -1272,6 +1342,7 @@ M             DC.B    'M',0
 Q             DC.B    'Q',0
 S             DC.B    'S',0
 E             DC.B    'E',0
+EM            DC.W    'EM',0
                
 SIZEB         DC.W    '.B',00
 SIZEW         DC.W    '.W',0
