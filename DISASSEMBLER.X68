@@ -19,7 +19,6 @@
 *manual: "ADDA is used when the destination is an address register. ADDI
 *          and ADDQ are used when the source is immediate data. Most
 *          assemblers automatically make this distinction."
-
              
               ***************************************
               * TODO for initial user input for start/end addresses:
@@ -44,14 +43,19 @@ start         ORG     start_addr
               
               lea     stack,sp
               adda.w  #$600,a5
-              adda.w  #$610,a6
+              adda.w  #$620,a6
               
               CLR      D4                 *register used in address calculation
               CLR      D7                 *register used for address calculation
               
 
 prep          CMPA.L   A5,A6              *have we read from start-end?
-              BLT      done               * yes-end
+              BLT      done               * yes-end            
+              MOVE.B   #5,D0              *pause for user to hit enter
+              TRAP     #15
+              LEA     nl,A1               *make an new line
+              MOVE.B  #14,D0
+              TRAP    #15
               LEA      hex_1,A4           *pointer to hex_1 table in A4
               MOVEA.L  #0,A1              *clearing variables
               MOVE.L   #0,SIZECODE
@@ -91,9 +95,6 @@ inv_handler   MOVE.L  DAT,INST_NAME
               MOVE.B  #3,D0             *display the unsupported opcode
               TRAP    #15
               ADDA    #2,A5
-              LEA     nl,A1
-              MOVE.B  #14,D0
-              TRAP    #15
               BRA     prep
               
 * /inv_handler
@@ -104,8 +105,7 @@ inv_handler   MOVE.L  DAT,INST_NAME
 match_found   CMP.B   #1,(A4)             *check if the mapping is ambiguous
               BEQ     inst_parse          * it is- get the next hex digit
               BRA     get_data            * its not-- just branch straight to the corresponding function
-              
-              
+                          
 inst_parse    CMP.B   #1,D1            *based on the first digit, decide how to decode next value.
               BEQ     _1_handler
               CMP.B   #3,D1
@@ -124,89 +124,66 @@ inst_parse    CMP.B   #1,D1            *based on the first digit, decide how to 
               BEQ     _8_handler
 
 *The following functions determine where to go if the first hex value is shared between instructions             
-*---------------   
-*MOVE.B, MOVEA.B(inv)        
+*---------------           
 _1_handler    CLR.B   D1
               MOVE.L  MOV,INST_NAME
               MOVE.L  SIZEB,SIZECODE
+              MOVE.B  #0,(A2)        *flag data as byte
               ROL.L   #3,D1          *isolate dest. An or Dn bits (t.b.d. if MOVE or MOVEA)
               MOVE.B  D1,D2          *and move them to D2
               CLR.B   D1
               ROL.L   #3,D1          *isolate dest. mode bits in D1.B
               CMP.B   #1,D1          *is mode == 001?
-              BEQ     moveab_handler * yes- its movea
+              BEQ     movea_handler * yes- its movea
               
-moveb_handler MOVE.L  E,INST_NAME_EXT
-              MOVE.B  D1,D4          *save dest mode bits to D4
-              BRA     moveb_ea
+move_handler MOVE.L  E,INST_NAME_EXT
+             MOVE.B  D1,D4          *save dest mode bits to D4
+             BRA     move_ea
+                  
+movea_handler MOVE.L EA,INST_NAME_EXT
+              MOVE.B D1,D4          *save address register bits
+              BRA    move_ea         
 
-moveab_handler MOVE.L EA,INST_NAME_EXT
-               CLR.B  D1             *clear dest. mode bits-- we know its address register
-               BRA    moveb_ea
-               
-
-moveb_ea       CLR.B  D1
-               ROL.L  #3,D1
-               MOVE.L D1,D3
-               JSR    disp_instr
-               JSR    EA_SRC
-               BRA    prep
+move_ea       CLR.B  D1
+              ROL.L  #3,D1
+              MOVE.L D1,D3         *save source mode/reg bits in D3
+              JSR    disp_instr    *print MOVEA.B or MOVE.B
+              JSR    EA_SRC_beg    *print source information
+              MOVE.B #29,D0        *prep D0 as index for number of shift
+              LSL.L  D0,D2         *shift An or Dn bits to the left fringe
+              MOVE.B D4,D2         *save mode bits to the right fringe
+              MOVE.L D2,D3         *move these mode/reg bits to D3 for next function
+              JSR    print_comma
+              JSR    EA_SRC        *prints destination mode/register
+              BRA    prep
 
 *--------------- 
 *---------------
 _3_handler    CLR.B   D1
               MOVE.L  MOV,INST_NAME
               MOVE.L  SIZEW,SIZECODE
+              MOVE.B  #1,(A2)        *flag data as word
               ROL.L   #3,D1          *isolate dest. An or Dn bits (t.b.d. if MOVE or MOVEA)
               MOVE.B  D1,D2          *and move them to D2
               CLR.B   D1
               ROL.L   #3,D1          *isolate dest. mode bits in D1.B
               CMP.B   #1,D1          *is mode == 001?
-              BEQ     moveaw_handler * yes- its movea
+              BEQ     movea_handler * yes- its movea (function is subset of _1_handler)
+              BRA     move_handler  * no- its move (function is subset of _1_handler)
               
-movew_handler MOVE.L  E,INST_NAME_EXT
-              MOVE.B  D1,D4          *save dest mode bits to D4
-              BRA     movew_ea
-
-moveaw_handler MOVE.L EA,INST_NAME_EXT
-               CLR.B  D1             *clear dest. mode bits-- we know its address register
-               BRA    movew_ea
-               
-
-movew_ea       CLR.B  D1
-               ROL.L  #3,D1
-               MOVE.L D1,D3
-               JSR    disp_instr
-               JSR    EA_SRC
-               BRA    prep
-
 *--------------- 
 *--------------- 
 _2_handler    CLR.B   D1
               MOVE.L  MOV,INST_NAME
               MOVE.L  SIZEL,SIZECODE
+              MOVE.B  #2,(A2)        *flag data as long
               ROL.L   #3,D1          *isolate dest. An or Dn bits (t.b.d. if MOVE or MOVEA)
               MOVE.B  D1,D2          *and move them to D2
               CLR.B   D1
               ROL.L   #3,D1          *isolate dest. mode bits in D1.B
               CMP.B   #1,D1          *is mode == 001?
-              BEQ     moveal_handler * yes- its movea
-              
-movel_handler MOVE.L  E,INST_NAME_EXT
-              MOVE.B  D1,D4          *save dest mode bits to D4
-              BRA     movel_ea
-
-moveal_handler MOVE.L EA,INST_NAME_EXT
-               CLR.B  D1             *clear dest. mode bits-- we know its address register
-               BRA    movel_ea
-               
-
-movel_ea       CLR.B  D1
-               ROL.L  #3,D1
-               MOVE.L D1,D3
-               JSR    disp_instr
-               JSR    EA_SRC
-               BRA    prep
+              BEQ     movea_handler * yes- its movea (function is subset of _1_handler)
+              BRA     move_handler  * no- its move (function is subset of _1_handler)
 
 
 *--------------- 
@@ -266,7 +243,7 @@ _8_handler      CLR.B   D1
                 BEQ     divsw_handler       *between or and divs.w, only divs.w can have a size 11
                 BRA     or_handler
                
-*--------------- 
+*---------------
 *--------------- 
 
 *we can go directly to the function since the first hex val maps directly to an instruction
@@ -308,20 +285,21 @@ adda_handler       MOVE.L ADD,INST_NAME  *we know its valid instr ADDA
                    LSR.B  #1,D1          *send the size bit to carry
                    BCS    adda_long_handler    *carry is set->ADDA.W
                    BRA    adda_word_handler    *carry not set->ADDA.L
-                
+                   
 adda_word_handler  MOVE.L SIZEW,SIZECODE
                    JSR    disp_instr
                    BRA    adda_save_data
 adda_long_handler  MOVE.L SIZEL,SIZECODE
-                   JSR    disp_instr
-                   BRA    adda_save_data            
-adda_save_data     MOVE.B D1,D5             *move the 3 An bits
+                   JSR    disp_instr         
+adda_save_data     MOVE.B D1,D3             *move the 3 An bits
+                   JSR    PRINT_INNER_An
+                   JSR    print_comma
                    CLR.B  D1                *done with second 4 bits
-                   ROL.L  #2,D1             *move and clear size bits-- we already know them
-                   CLR.B  D1
+                   LSL.L  #2,D1             *move and clear size bits-- we already know them
                    ROL.L  #3,D1             *separate 6 EA bits
                    MOVE.L D1,D3             *and move them to D3
-                   JSR    EA_SRC
+                   JSR    print_comma
+                   JSR    EA_SRC_beg
                    BRA    prep                     
 
 * /adda_handler
@@ -330,43 +308,14 @@ adda_save_data     MOVE.B D1,D5             *move the 3 An bits
 *----------------------------------------------------------------------------
 *add_handler
 *handles 'ADD'
+* heavily uses the or_handler function as the instruction formats are equivalent after the first nibble
 
 add_handler    MOVE.L ADD,INST_NAME
                LSR.B  #1,D1              *isolate direction bit
-               BCS    add_right_handler  *<ea> + Dn -> <ea>
-               BRA    add_left_handler   *Dn + <ea> -> Dn
+               MOVE.B D1,D5              *move dest bit to D5
+               BCS    or_Dn_right  *<ea> + Dn -> <ea>
+               BRA    or_Dn_left   *Dn + <ea> -> Dn
                
-add_right_handler   *adjust operands ^
-                    BRA  save_data_add
-
-add_left_handler    *adjust operands ^
-                    BRA  save_data_add
-                    
-add_byte_handler    MOVE.L  SIZEB,SIZECODE
-                    JSR     disp_instr
-                    BRA     add_get_ea
-
-add_word_handler    MOVE.L  SIZEW,SIZECODE
-                    JSR     disp_instr
-                    BRA     add_get_ea
-
-add_long_handler    MOVE.L  SIZEL,SIZECODE
-                    JSR     disp_instr
-                    BRA     add_get_ea
-
-save_data_add       MOVE.L D1,D5            *save Dn bits
-                    CLR.B  D1
-                    ROL.L  #2,D1            *get size bits in byte position
-                    CMP.B  #1,D1            *whats the size of the add?
-                    BLT    add_byte_handler
-                    BGT    add_long_handler
-                    BEQ    add_word_handler
-                    
-add_get_ea          ROL.L  #3,D1            *get EA bits
-                    MOVE.L #3,D3
-                    JSR    EA_SRC
-                    BRA    prep
-
 * /add_handler
 *----------------------------------------------------------------------------
 
@@ -599,7 +548,7 @@ prep_srh_disp        BRA      disp_instr
  * /_shift_roll_handler  
 *-----------------------------------------------------------------------------
 
-
+      
 *-----------------------------------------------------------------------------
  * eor_handler  
  * handles 'EOR'
@@ -610,29 +559,10 @@ prep_srh_disp        BRA      disp_instr
  *D2: holds source data register
  *D4: holds operation size (b,w,l)
  *D3: holds EA info (mode,register)
- 
+
 eor_handler         MOVE.L   EOR,INST_NAME
                     MOVE.B   D1,D5        *copy data register number in d1 to d5
-                    CLR.B    D1
-                    ROL.L    #2,D1         
-                    MOVE.B   D1,D4        *save size bits to d4        
-                    CLR.B    D1
-eor_size_det        CMP.B    #0,D4
-                    BEQ      eor_byte
-                    CMP.B    #1,D4
-                    BEQ      eor_word
-                    CMP.B    #2,D4
-                    BEQ      eor_long
-eor_byte            MOVE.L   SIZEB,SIZECODE
-                    BRA      eor_ret
-eor_word            MOVE.L   SIZEW,SIZECODE
-                    BRA      eor_ret
-eor_long            MOVE.L   SIZEL,SIZECODE               
-eor_ret             JSR      disp_instr
-                    ROL.L    #3,D1        *save EA bits to d1
-                    MOVE.L   D1,D3
-                    JSR      EA_SRC
-                    BRA      prep                 
+                    BRA      or_Dn_right
                     
 * /eor_handler
 *-----------------------------------------------------------------------------
@@ -651,26 +581,7 @@ eor_ret             JSR      disp_instr
 
 cmp_handler         MOVE.L   CMP,INST_NAME
                     MOVE.B   D1,D5        *save Dn bits to D5
-                    CLR.B    D1           *ready byte position of D1
-                    ROL.L    #2,D1        *isolate size bits
-                    MOVE.B   D1,D4        *save size bits to D4
-                    CMP.B    #0,D4
-                    BEQ      cmp_byte
-                    CMP.B    #1,D4
-                    BEQ      cmp_word
-                    CMP.B    #2,D4
-                    BEQ      cmp_long
-cmp_byte            MOVE.L   SIZEB,SIZECODE
-                    BRA      cmp_ret
-cmp_word            MOVE.L   SIZEW,SIZECODE
-                    BRA      cmp_ret
-cmp_long            MOVE.L   SIZEL,SIZECODE               
-cmp_ret             JSR      disp_instr
-                    CLR.B    D1           *ready byte position of D1
-                    ROL.L    #3,D1        *isolate EA bits
-                    MOVE.L   D1,D3
-                    JSR      EA_SRC
-                    BRA      prep
+                    BRA      or_Dn_left
 
 * /cmp_handler
 *-----------------------------------------------------------------------------
@@ -705,7 +616,7 @@ cmpi_ret           JSR      disp_instr
                    CLR.B    D1
                    ROL.L    #3,D1     isolate EA info in D1
                    MOVE.L   D1,D3
-                   JSR      EA_SRC
+                   JSR      EA_SRC_beg
                    BRA      prep
                    
 * /cmpi_handler
@@ -739,7 +650,7 @@ bclr_dynamic      MOVE.L    D1,D2          *copy instruction opcode into D2
                   ROL.L     #2,D3
                   CLR.B     D3
                   ROL.L     #3,D3          *save EA info in D3
-                  JSR       EA_SRC
+                  JSR       EA_SRC_beg
                   BRA       prep
 
 * /bclr_handler
@@ -768,7 +679,7 @@ ori_ret           JSR      disp_instr
                   CLR.B    D1
                   ROL.L    #3,D1
                   MOVE.L   D1,D3           *save size bits to D3
-                  JSR      EA_SRC
+                  JSR      EA_SRC_beg
                   BRA      prep
 
 * /ori_handler
@@ -791,7 +702,7 @@ lea_handler       MOVE.L    LEA,INST_NAME
                   CLR.B     D1
                   ROL.L     #3,D1          *shift EA mode and register 
                   MOVE.L    D1,D3          
-                  JSR       EA_SRC
+                  JSR       EA_SRC_beg
                   BRA       prep
                   
                   
@@ -822,7 +733,10 @@ neg_word          MOVE.L   SIZEW,SIZECODE
 neg_long          MOVE.L   SIZEL,SIZECODE
 neg_ret           JSR      disp_instr
                   CLR.B    D1
-                  ROL.L    #6,D1           *shift EA mode and register bits in D1
+                  ROL.L    #3,D1           *shift EA mode and register bits in D1
+                  MOVE.L   D1,D3
+                  JSR      EA_SRC_beg
+                  BRA      prep
 
 * /neg_handler
 *-----------------------------------------------------------------------------
@@ -838,7 +752,7 @@ jsr_handler       MOVE.L  JSR,INST_NAME
                   CLR.B   D1        *we already know its jsr. get rid of hardcoded bits
                   ROL.L   #3,D1     *save EA bits into D1
                   MOVE.L  D1,D3
-                  JSR     EA_SRC
+                  JSR     EA_SRC_beg
                   BRA     prep
 
 * /jsr_handler
@@ -874,12 +788,15 @@ or_size        CMP.B    #0,D4
                BEQ      or_long
                
 or_byte        MOVE.L   SIZEB,SIZECODE
+               MOVE.B   #0,(A2)        *flag data as byte sized
                BRA      or_ea
 
 or_word        MOVE.L   SIZEW,SIZECODE
+               MOVE.B   #1,(A2)        *flag data as word sized
                BRA      or_ea
 
 or_long        MOVE.L   SIZEL,SIZECODE
+               MOVE.B   #2,(A2)        *flag data as long sized
 
 or_ea          JSR      disp_instr
                CLR.B    D1
@@ -887,22 +804,18 @@ or_ea          JSR      disp_instr
                MOVE.L   D1,D3          *move EA source bits to D3
                CMP.B    #1,D7
                BEQ      or_left_print
-               JSR      EA_SRC
+               JSR      EA_SRC_beg
                MOVE.B   D5,D3          *dont need D3 anymore-- Dn bits there for function call
+               JSR      print_comma
                JSR      DR_CMP         *print Dn bits
-               LEA      nl,A1
-               MOVE.B   #14,D0
-               TRAP     #15
                BRA      prep
                
 or_left_print  MOVE.L   D3,D6          *temp store D3 bits in D6 for next function call
                MOVE.L   D5,D3          *get D5 bits in D3 for function call
-               JSR      DR_CMP         *print dn bits
+               JSR      DR_CMP         *print Dn bits
                MOVE.L   D6,D3          *restore bit order
-               JSR      EA_SRC
-               LEA      nl,A1
-               MOVE.B   #14,D0
-               TRAP     #15
+               JSR      print_comma
+               JSR      EA_SRC_beg
                BRA      prep
 
 * /or_handler
@@ -920,7 +833,7 @@ divsw_handler   MOVE.L DIV,INST_NAME
                 MOVE.B D1,D2        *save Dn number of operation to D2
                 LSL.L  #2,D1        *Shift out size bits--we already know its a word
                 ROL.L  #6,D1        *D1 now holds the EA bits
-                JSR    EA_SRC
+                JSR    EA_SRC_beg
                 BRA    prep
 
 * /divsw_handler
@@ -954,7 +867,7 @@ movem_ea       JSR     disp_instr
                CLR.B   D1
                ROL.L   #3,D1
                MOVE.L  D1,D3
-               JSR     EA_SRC
+               JSR     EA_SRC_beg
                BRA     prep
 
 * /movem_handler
@@ -978,41 +891,12 @@ rts_handler    CLR.L  D1
 * handles 'SUB'
 
 sub_handler         MOVE.L  SUB,INST_NAME
-                    JSR     disp_instr
                     CLR.B   D1
                     ROL.L   #4,D1
                     LSR.B   #1,D1
-                    BCS     sub_right_handler   * <ea> SUB Dn -> <ea>
-                    BRA     sub_left_handler    * Dn SUB <ea> -> Dn
+                    BCS     or_Dn_right   * <ea> SUB Dn -> <ea>
+                    BRA     or_Dn_left    * Dn SUB <ea> -> Dn
                     
-sub_right_handler   MOVE.B  D1,D2       *move Dn bits to D2
-                    ROL.L   #2,D1
-                    BRA     sub_size_determiner
-
-sub_left_handler    MOVE.B  D1,D2       *move Dn bits to D2
-                    ROL.L   #2,D1
-                    BRA     sub_size_determiner
-
-sub_size_determiner CMP.B   #0,D2
-                    BEQ     sub_byte
-                    CMP.B   #1,D2
-                    BEQ     sub_word
-                    CMP.B   #2,D2
-                    BEQ     sub_long
-                    
-sub_byte            MOVE.L  SIZEB,SIZECODE
-                    BRA     sub_ea
-
-sub_word            MOVE.L  SIZEW,SIZECODE
-                    BRA     sub_ea
-    
-sub_long            MOVE.L  SIZEL,SIZECODE
-                    BRA     sub_ea
-                    
-sub_ea              ROL.L   #3,D1
-                    MOVE.L  D1,D3
-                    JSR     EA_SRC
-                    BRA     prep
 
 * /sub_handler
 *-----------------------------------------------------------------------------
@@ -1046,7 +930,7 @@ subq_ea            MOVE.B  D1,D2            *move immediate data bits back to D1
                    MOVE.B  #3,D0            *display immediate data
                    TRAP    #15
                    JSR     disp_instr
-                   JSR     EA_SRC
+                   JSR     EA_SRC_beg
                    BRA     prep
                    
 
@@ -1063,26 +947,25 @@ muls_handler      MOVE.L  MUL,INST_NAME
                   CLR.B   D1
                   ROL.L   #4,D1
                   LSR.B   #1,D1     *get rid of hardcoded bit
-                  MOVE.B  D1,D2     *move Dn bits to D2
+                  MOVE.B  D1,D5     *move Dn bits to D5
                   CLR.B   D1
                   LSL.B   #2,D1     *get rid of hardcoded bits--we know size is word
                   ROL.L   #3,D1
                   MOVE.L  D1,D3
-                  JSR     EA_SRC
+                  JSR     disp_instr
+                  JSR     EA_SRC_beg
                   BRA     prep
 
 */muls_handler
 *-----------------------------------------------------------------------------
 *below functions also increment address pointer A5 depending on data fetch size for immediate,absolute addresses
 
-EA_SRC      *(xxx).W, (xxx).L, #<data>
+EA_SRC_beg  ADDA   #word_len,A5
+            *(xxx).W, (xxx).L, #<data>
             CMPI.B #$7, D3            *Compares if its 111
                BEQ FILTER_EA_MODE
                
-                                      *since the EA bits dont indicate absolute addresses or immediate data,
-            ADDA   #word_len,A5       * we know that this instruction is only a word in length
-            
-            *Dn
+EA_SRC      *Dn
             CMPI.B #$0, D3           *Compares if its 000
                 
                 BEQ DATA_REGISTER
@@ -1102,7 +985,7 @@ EA_SRC      *(xxx).W, (xxx).L, #<data>
             CMPI.B #$4, D3
                 BEQ PREFIX_MINUS
                 
-               BNE INVALID_EA  
+                BNE INVALID_EA  
 
 FILTER_EA_MODE
 
@@ -1176,13 +1059,13 @@ CLOSED_PARAN
     *Print The appropriate value of An *Needed to use JSR & RTS
     JSR PRINT_INNER_An
    
-    *Prints '),'
+    *Prints ')'
     LEA closed_paren, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
     
- *Prints the An in (An) and returns to the original method   
+*Prints the An in (An) and returns to the original method   
 PRINT_INNER_An
     CMPI  #0, D3
         BEQ    PRINT_A0
@@ -1201,10 +1084,8 @@ PRINT_INNER_An
     CMPI #7, D3
         BEQ PRINT_A7
 
-
 * (An)+
 POSTFIX_PLUS
-
     CLR.B  D3
     ROL.L  #3,D3
     
@@ -1217,7 +1098,7 @@ POSTFIX_PLUS
     *Print The appropriate value of An
     JSR PRINT_INNER_An
     
-    *Prints '),'
+    *Prints ')'
     LEA closed_paren, A1
     MOVE.B #14, D0
     TRAP #15
@@ -1227,13 +1108,12 @@ POSTFIX_PLUS
     MOVE.B #14, D0
     TRAP #15
     RTS
+    
 *-(An)
 PREFIX_MINUS
-
     *parse for 
     CLR.B  D3
     ROL.L  #3,D3
-    
     
      *Prints '-'
     LEA neg_sign, A1
@@ -1249,150 +1129,173 @@ PREFIX_MINUS
     JSR PRINT_INNER_An
     
     
-    *Prints '),'
+    *Prints ')'
     LEA closed_paren, A1
     MOVE.B #14, D0
     TRAP #15
-
-    
+ 
     RTS
     
 *(xxx).W 
-WORD_MODE   MOVEM.L  D1,-(SP) 
-            CLR.L    D1
-            
-            
-            MOVEM.L  (SP)+,D1 
-            RTS
+WORD_MODE  MOVEM.L  D1,-(SP)      *save calling state of D1
+           CLR.L    D1
+           *ADDA     #word_len,A5  *increment the pointer to the next address by the length of the next WORD fetched from memory
+           MOVE.W   (A5)+,D1      *move that word value to D1 for display
+           MOVE.B   #3,D0
+           TRAP     #15           *display the word
+           MOVEM.L  (SP)+,D1      *restore D1
+           RTS
     
 *(xxx).L 
-LONG_MODE   MOVEM.L  D1,-(SP) 
-            CLR.L    D1
-            
-            
-            MOVEM.L  (SP)+,D1  
-            RTS
+LONG_MODE  MOVEM.L  D1,-(SP)      *save calling state of D1
+           CLR.L    D1
+           *ADDA     #long_len,A5  *increment the pointer to the next address by the length of the next LONG fetched from memory
+           MOVE.L   (A5)+,D1      *move that long value to D1 for display
+           MOVE.B   #3,D0
+           TRAP     #15           *display the long
+           MOVEM.L  (SP)+,D1      *restore D1
+           RTS
+           
+absaddr_print JSR      print_addr_sgn 
+              MOVE.B   #3,D0        *print the immediate data in D1
+              TRAP     #15 
+              MOVEM.L  (SP)+,D1     *restore D1
+              RTS
 
 *#<data>
-DATA_MODE  MOVEM.L  D1,-(SP) 
-           CLR.L    D1
-           LEA      imm_sign, A1    *Print '#'
-           MOVE.B   #14, D0
-           TRAP     #15
-           
-           ADDA     #word_len,A5
-           MOVE.W   (A5)+,D1
-           MOVE.B   #3,D0
-           TRAP     #15
-    
-           MOVEM.L  (SP)+,D1
-           RTS
-   
+DATA_MODE  MOVEM.L  D1,-(SP)        *save calling state of D1
+           CLR.L    D1 
+           CMP.B    #1,(A2)         *is immediate data flagged as a word?
+           BEQ      word_data_handler
+           CMP.B    #2,(A2)         *is immediate data flagged as a long?
+           BEQ      long_data_handler          
+ 
+byte_data_handler *ADDA     #byte_len,A5
+                  MOVE.B   (A5)+,D1     *get immediate byte data and increment address by a byte
+                  BRA      data_mode_print
+                  
+word_data_handler *ADDA     #word_len,A5
+                  MOVE.W   (A5)+,D1     *get immediate word data and increment address by a word
+                  BRA      data_mode_print
+
+long_data_handler *ADDA     #long_len,A5
+                  MOVE.L   (A5)+,D1     *get immediate long data and increment address by a long
+                  BRA      data_mode_print
+
+data_mode_print   LEA      imm_sign, A1    *load and print '#' character
+                  MOVE.B   #14, D0
+                  TRAP     #15   
+                  MOVE.B   #3,D0        *print the immediate data in D1
+                  TRAP     #15 
+                  MOVEM.L  (SP)+,D1     *restore D1
+                  RTS
 
 PRINT_D0 LEA D0_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D0_MESS  DC.W 'D0,',0
+D0_MESS  DC.W 'D0',0
 
 
 PRINT_D1 LEA D1_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D1_MESS  DC.W 'D1,',0
+D1_MESS  DC.W 'D1',0
 
 
 PRINT_D2 LEA D2_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D2_MESS  DC.W 'D2,',0
+D2_MESS  DC.W 'D2',0
 
 
 PRINT_D3 LEA D3_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D3_MESS  DC.W 'D3,',0
+D3_MESS  DC.W 'D3',0
 
 
 PRINT_D4 LEA D4_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D4_MESS  DC.W 'D4,',0
+D4_MESS  DC.W 'D4',0
 
 
 PRINT_D5 LEA D5_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D5_MESS  DC.W 'D5,',0
+D5_MESS  DC.W 'D5',0
 
 
 PRINT_D6 LEA D6_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D6_MESS  DC.W 'D6,',0
+D6_MESS  DC.W 'D6',0
 
 PRINT_D7 LEA D7_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-D7_MESS  DC.W 'D7,',0
+D7_MESS  DC.W 'D7',0
     
 
 PRINT_A0 LEA A0_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A0_MESS DC.W 'A0,',0
+A0_MESS DC.W 'A0',0
 
 PRINT_A1 LEA A1_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A1_MESS DC.W 'A1,',0
+A1_MESS DC.W 'A1',0
 
 PRINT_A2 LEA A2_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A2_MESS DC.W 'A2,',0
+A2_MESS DC.W 'A2',0
 
 PRINT_A3 LEA A3_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A3_MESS DC.W 'A3,',0
+A3_MESS DC.W 'A3',0
 
 PRINT_A4 LEA A4_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A4_MESS DC.W 'A4,',0
+A4_MESS DC.W 'A4',0
 
 PRINT_A5 LEA A5_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A5_MESS DC.W 'A5,',0
+A5_MESS DC.W 'A5',0
 
 PRINT_A6 LEA A6_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A6_MESS DC.W 'A6,',0
+A6_MESS DC.W 'A6',0
 
 PRINT_A7 LEA A7_MESS, A1
     MOVE.B #14, D0
     TRAP #15
     RTS
-A7_MESS DC.W 'A7,',0
+A7_MESS DC.W 'A7',0
 
 *-----------------------------------------------------------------------------------------
+*disp_instr
+* displays the instruction name in assembly and the address of the instruction
 
 disp_instr    MOVEM.L D1, -(SP)     *save state of D1 before using it below
 
@@ -1428,8 +1331,27 @@ disp_instr    MOVEM.L D1, -(SP)     *save state of D1 before using it below
               MOVEM.L  (SP)+,D1     *restore D1
               RTS
               
-      
-done          LEA     done_msg,A1
+* /disp_instr
+*-----------------------------------------------------------------------------------------  
+
+print_comma   MOVEM.L A1,-(SP)
+              LEA     comma,A1
+              MOVE.B  #14,D0
+              TRAP    #15    
+              MOVEM.L (SP)+,A1
+              RTS    
+              
+print_addr_sgn MOVEM.L A1,-(SP)
+               LEA     addr_sign,A1
+               MOVE.B  #14,D0
+               TRAP    #15    
+               MOVEM.L (SP)+,A1
+               RTS    
+               
+done          LEA     nl,A1
+              MOVE.B  #14,D0
+              TRAP    #15
+              LEA     done_msg,A1
               MOVE.B  #14,D0
               TRAP    #15
               MOVE.B  #9,D0         *indicate end of simulation
@@ -1443,8 +1365,7 @@ addr_err      LEA     bad_addr,A1   *load the error msg into A1
               TRAP    #15
               CLR.L   D2            *reset msb index for further iterations
              * BRA     disp_msg      *go back to welcome msg
-              
-              
+                         
 fatal_err     LEA     imm_sign,A1   *load the error msg into A1
               MOVE.B  #14,D0       *indicate output
               TRAP    #15
@@ -1452,7 +1373,7 @@ fatal_err     LEA     imm_sign,A1   *load the error msg into A1
               MOVE.B  #14,D0        *indicate output
               TRAP    #15
               CLR.L   D2            *reset msb index for further iterations
-              BRA     done      *go back to welcome msg
+              BRA     done         *go back to welcome msg
               
 *-------------------------------------------------------------------------------------------------------------------------------------------              
 data          ORG     $4000
@@ -1475,11 +1396,10 @@ string_tbl    DC.B    $30,$0      *{ascii,hex}
               DC.B    $45,$E
               DC.B    $46,$F
               
-              
+             *hex_1
              *first hex digit of the instruction with corresponding mappings
               *1 means the mapping is ambiguous (and we have to read more bits in instruction) 0 means its not.
-              * -1 means the instruction isnt one that can be disassembled in this program
-              
+              *-1 means the instruction isnt one that can be disassembled in this program             
 hex_1         DC.B    $01,$01  * 'MOVE.B','MOVEA.B'
               DC.B    $03,$01  * 'MOVE.W','MOVEA.W'
               DC.B    $02,$01  * 'MOVEA.L','MOVEA.L'
@@ -1493,7 +1413,7 @@ hex_1         DC.B    $01,$01  * 'MOVE.B','MOVEA.B'
               DC.B    $05,$00  * 'SUBQ'
               DC.B    $0C,$00  * 'MULS'
               DC.B    $08,$01  * 'OR','DIVS(word)'
-              DC.B    -1,-1    * invalid-first hex val is not one in the table above
+              DC.B    -1,-1    * unsupported instruction-first hex val is not one in the table above
 
 *MOVEA         DC.L    'MOVEA',0
 *MOVEM         DC.L    'MOVEM',0              
@@ -1544,13 +1464,9 @@ SIZECODE      DS.L    1
 
 byte_len      EQU     1
 word_len      EQU     2
-long_len      EQU     4
+long_len      EQU     4            
               
-s_reg         REG     D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6/A7
-              
-              
- 
-* holds the condition of each instruction                
+* holds the condition of each branch                
 bcc_tbl       DC.B    %0101 *BCS
               DC.B    %1100 *BGE
               DC.B    %1101 *BLT
@@ -1565,8 +1481,7 @@ shift_tbl     DC.B    %000
               DC.B    %100
               DC.B    %101
               DC.B    %110
-              DC.B    %111
-                                   
+              DC.B    %111                              
 
 INST_NAME     DS.L    2         *holds the instruction to be printed (e.g. ADD.L; MOVE.B)
 INST_NAME_EXT DS.L    1         *holds any part of instruction over 32 bits (eg last M in MOVEM)
@@ -1575,12 +1490,12 @@ OP_NAMES      DS.L    7         *holds the operands to be printed (e.g. #5,D3; (
 addr_sign     DC.B    '$',0
 imm_sign      DC.B    '#',0
 open_paren    DC.B    '(',0
-closed_paren  DC.W    '),',0
+closed_paren  DC.B    ')',0
 plus_sign     DC.B    '+',0
 neg_sign      DC.B    '-',0
-*comma         DC.B    ',',0
-space         DC.B    '   ',0
-                            
+comma         DC.B    ',',0
+space         DC.B    '    ',0
+                        
 nl            DC.B    '',CR,LF,0
 display_start DC.B    'Please enter a maximum 32-bit starting memory address in hex (-1 to quit): ',0
 display_end   DC.B    'Please enter a maximum 32-bit ending memory address in hex (-1 to quit): ',0
@@ -1596,6 +1511,8 @@ done_msg      DC.B    'done',0
 
 
               END     start
+
+
 
 
 

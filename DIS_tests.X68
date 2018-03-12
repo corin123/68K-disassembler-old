@@ -12,12 +12,21 @@
       
 start org $600
       
-    lsl.w #3,d1
-    asr.l #2,d1
-    bra   start
-    
+      *movem d4,(sp)
+      OR.W #12313,d5
+      EOR.l     D7,d3
+      MOVEA.L A3,A7
+      MOVE.B D3,(A4)
+       OR (A3),D3
+       OR D3,D6
       
       end start
+
+
+
+
+
+
 
 
 
