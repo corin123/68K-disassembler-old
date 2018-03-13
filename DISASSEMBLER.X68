@@ -47,7 +47,6 @@ start         ORG     start_addr
               
               CLR      D4                 *register used in address calculation
               CLR      D7                 *register used for address calculation
-              
 
 prep          CMPA.L   A5,A6              *have we read from start-end?
               BLT      done               * yes-end            
@@ -60,6 +59,7 @@ prep          CMPA.L   A5,A6              *have we read from start-end?
               MOVEA.L  #0,A1              *clearing variables
               MOVE.L   #0,SIZECODE
               MOVE.L   #0,INST_NAME_EXT
+              *CLR.L    A0
               CLR.L    D0
               CLR.L    D1
               CLR.L    D2
@@ -94,7 +94,7 @@ inv_handler   MOVE.L  DAT,INST_NAME
               JSR     disp_instr
               MOVE.B  #3,D0             *display the unsupported opcode
               TRAP    #15
-              ADDA    #2,A5
+              ADDA    #word_len,A5
               BRA     prep
               
 * /inv_handler
@@ -332,13 +332,13 @@ add_handler    MOVE.L ADD,INST_NAME
 
 bcc_handler   CLR.B   D1
               ROL.L   #4,D1
-              MOVE.B  D1,D3         *copy condition value to D3
-              LEA     bcc_tbl,A4    *A4 now points to the bcc_tbl
-bcc_cond      CMP.B   #-1,(A4)      *have we reached the end of the table
-              BEQ     fatal_err     * yes-invalid branch
+              MOVE.B  D1,D3          *copy condition value to D3
+              LEA     bcc_tbl,A4     *A4 now points to the bcc_tbl
+bcc_cond      CMP.B   #-1,(A4)       *have we reached the end of the table
+              BEQ     inv_handler    * yes-invalid branch
               CMP.B   (A4)+,D3       *compare the next table value
               BEQ     bcc_determiner * there's a match
-              BRA     bcc_cond      *continue looping through the table
+              BRA     bcc_cond       *continue looping through the table
 
 bcc_determiner  CMP.B  #5,-(a4)
                 BEQ    bcs_handler
@@ -350,8 +350,7 @@ bcc_determiner  CMP.B  #5,-(a4)
                 BEQ    bvc_handler
                 CMP.B  #0,(a4)
                 BEQ    bra_handler
-                BRA    fatal_err
-
+                BRA    inv_handler
 
 bcs_handler   MOVE.L  BCS,INST_NAME
               BRA     bcc_dispm
@@ -362,22 +361,29 @@ blt_handler   MOVE.L  BLT,INST_NAME
 bvc_handler   MOVE.L  BVC,INST_NAME
               BRA     bcc_dispm
 bra_handler   MOVE.L  BRA,INST_NAME
-              BRA     bcc_dispm
-
+bcc_dispm     MOVE.L  A5,D4            *copy current address to D4
+              ADDA    #word_len,A5     *all Bcc instructions took up a word
               
-bcc_dispm     CLR.B   D1            *now find the displacement- (A5 +- last 2 nibbles)
-              ROL.L   #8,D1         *get the last 2 nibbles
-              MOVE.L  (A5),D4       *copy current address to D4. **Bcc takes up a word, move it forward             
-              ADDI.B  #2,D4         *and get to where the PC is
-              SUB.L   D1,D4         *calculate displacement address
+              CLR.B   D1               *now find the displacement- (A5 +- last 2 nibbles)
+              ROL.L   #8,D1            *get the last 2 displacement nibbles
+              CMP.B   #0,D1            *are the 8 displacement bits all 0?
+              JSR     bcc_word_handler *yes- get the following displacement word
+              NOT.W   D1               *ones complement
+              ADDI    #1,D1            *twos complement 
+  
+              ADDI.B  #2,D4         *account for PC displacement 2 bytes ahead of current address
+              SUB.W   D1,D4         *calculate displacement address
+              BRA     bcc_complete
               
-              MOVE.L  D4,OP_NAMES   *store the displacement address in ops_msg
-              ADDA    #2,A5         *all Bcc took up a word- set A5 to the next instruction
-              
-              CLR.L   D3            *clear registers used in the Bcc subroutine
-              CLR.L   D4
+bcc_word_handler  
+              MOVE.W (A5)+,D1    *put 16 displacement bits in D1
+              RTS
                          
-              BRA     disp_instr
+bcc_complete  JSR     disp_instr
+              MOVE.L  D4,D1      *move displacement address to D1
+              MOVE.B  #3,D0
+              TRAP    #15        *display displacement address 
+              BRA     prep
               
  */bcc_handler            
 *-----------------------------------------------------------------------------
@@ -1334,6 +1340,43 @@ disp_instr    MOVEM.L D1, -(SP)     *save state of D1 before using it below
 * /disp_instr
 *-----------------------------------------------------------------------------------------  
 
+
+*----------------------------------------------------------------------------------------- 
+*hex_2_ascii
+* converts a hex number to its ascii string equivalent (0s in MSB positions)
+
+*A0: holds hex to be converted
+*D2: tracks which byte were on (max 8)
+*D3: holds the next hex byte to convert to ascii
+*D4: holds index into string_tbl
+
+h2a_regs        REG     A1/D2-D4        *used in this function
+
+hex_2_ascii     MOVEM   h2a_regs,-(SP)  *save state of registers before call
+                MOVE.B  #long_len*2,D2  *length of stored hex is 8 bytes max
+ 
+                MOVE.L  #1,D4           
+                MOVE.W  (A0),D3         *first part of hex word
+                MOVE.B  #32,D0          *loop counter
+                ROL.L   D0,D3
+                LEA     string_tbl,A4
+h2a_loop        CMP.B   (A4,D4.W),D3
+                BEQ     h2a_match   
+                ADDI    #2,D4  
+                BRA     h2a_loop        
+
+h2a_match       MOVE.B  -1(A4,D4.W),(A1)
+                MOVE.B  #14,D0
+                TRAP    #15
+                CMPI    #8,D1
+                BEQ     h2a_ret
+
+h2a_ret         MOVEM   (SP)+,h2a_regs   *restore state of registers 
+                RTS
+
+* /hex_2_ascii
+*----------------------------------------------------------------------------------------- 
+
 print_comma   MOVEM.L A1,-(SP)
               LEA     comma,A1
               MOVE.B  #14,D0
@@ -1511,6 +1554,7 @@ done_msg      DC.B    'done',0
 
 
               END     start
+
 
 
 
