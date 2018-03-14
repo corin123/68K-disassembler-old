@@ -3,36 +3,7 @@
 *               Written by : Sean Coulter, Corin Ennis, Antony Mbugua
 *               Date       : Winter 2018
 *               Description: A disassembler program for Motorola 68K source files
-*-----------------------------------------------------------------------------------------------
-
- *notes:
-* -an instruction we dont need to know could be a false positive when parsing the hex_1 table
-*   due to sharing a same first hex digit
-              
-*something to be aware of:
-* -for some instructions 68k will change the execution type without telling you e.g:
-*         ADD <immediate>, <ea>
-*         uses the ADDQ, which is an entirely different opcode
-
-* MOVE.B  'ASCIISTRING',(A5) is a valid opcode (wut)
-
-*manual: "ADDA is used when the destination is an address register. ADDI
-*          and ADDQ are used when the source is immediate data. Most
-*          assemblers automatically make this distinction."
-             
-              ***************************************
-              * TODO for initial user input for start/end addresses:
-              *   check if the starting address is odd
-              *   check if user- inputted end address is after program is loaded (ENDed) ?
-              ****************************************
-                     
-            *D1: sentinel exit value
-            *D2: index of MSB
-            *D3: length of user input string
-            *D4: index of pointer to string table
-            *D6: ascii value holding MSB
-            *D7: max valid input
-            
+*-----------------------------------------------------------------------------------------------            
             
 CR         EQU   $0D
 LF         EQU   $0A
@@ -45,6 +16,14 @@ start         ORG     start_addr
               adda.w  #$600,a5
               adda.w  #$620,a6
               
+              
+ *D1: sentinel exit value
+ *D2: index of MSB
+ *D3: length of user input string
+ *D4: index of pointer to string table
+ *D6: ascii value holding MSB
+ *D7: max valid input
+              
               CLR      D4                 *register used in address calculation
               CLR      D7                 *register used for address calculation
 
@@ -52,9 +31,9 @@ prep          CMPA.L   A5,A6              *have we read from start-end?
               BLT      done               * yes-end            
               MOVE.B   #5,D0              *pause for user to hit enter
               TRAP     #15
-              LEA     nl,A1               *make an new line
-              MOVE.B  #14,D0
-              TRAP    #15
+              LEA      nl,A1              *make an new line
+              MOVE.B   #14,D0
+              TRAP     #15
               LEA      hex_1,A4           *pointer to hex_1 table in A4
               MOVEA.L  #0,A1              *clearing variables
               MOVE.L   #0,SIZECODE
@@ -68,10 +47,12 @@ prep          CMPA.L   A5,A6              *have we read from start-end?
               CLR.L    D5
               CLR.L    D6
               CLR.L    D7
-              MOVE.W   #16,D0             *put 16 bits in D0 for the LSL instruction thats in 2 lines
+              *MOVE.W   #16,D0            *put 16 bits in D0 for the LSL instruction thats in 2 lines
               MOVE.W   (A5),D1            *move the instruction thats pointed to by starting address
+              MOVE.L   D1,A3              *and copy it to A3
+              SWAP     D1
               MOVE.W   D1,D2              *and copy it to D2
-              LSL.L    D0,D1              *shift the word to the left
+              *LSL.L    D0,D1              *shift the word to the left
               ROL.L    #4,D1              *isolate the first hex digit
              
 check_first   CMP.B   (A4)+,D1            *compare with the next value in the hex table
@@ -85,13 +66,14 @@ check_first   CMP.B   (A4)+,D1            *compare with the next value in the he
 * inv_handler
 * handles unsupported instruction names
 * prints DATA for instruction name 
-
+                
 inv_handler   MOVE.L  DAT,INST_NAME
               MOVE.L  A,INST_NAME_EXT
-              MOVE.B  #12,D5
-              ROL.L   D5,D1             *line up rest of the instruction
+              *MOVE.B  #12,D5
+              *ROL.L   D5,D1             *line up rest of the instruction
               JSR     disp_instr
-              MOVE.L  D1,A0
+              *MOVE.L  D1,A0
+              MOVE.L  A3,A0
               JSR     hex_2_ascii       *convert/display the unsupported opcode
               ADDA    #word_len,A5
               BRA     prep
@@ -149,10 +131,15 @@ move_ea       CLR.B  D1
               MOVE.L D1,D3         *save source mode/reg bits in D3
               JSR    disp_instr    *print MOVEA.B or MOVE.B
               JSR    EA_SRC_beg    *print source information
-              MOVE.B #29,D0        *prep D0 as index for number of shift
-              LSL.L  D0,D2         *shift An or Dn bits to the left fringe
-              MOVE.B D4,D2         *save mode bits to the right fringe
-              MOVE.L D2,D3         *move these mode/reg bits to D3 for next function
+              
+              ROR.L  #3,D2         *roll dest register bits to left fringe
+              MOVE.B D4,D2         *move dest mode bits to right fringe
+              MOVE.L D2,D3         *move these same bits to D3
+              
+              *MOVE.B #29,D0        *prep D0 as index for number of shift
+              *LSL.L  D0,D2         *shift An or Dn bits to the left fringe
+              *MOVE.B D4,D2         *save mode bits to the right fringe
+              *MOVE.L D2,D3         *move these mode/reg bits to D3 for next function
               JSR    print_comma
               JSR    EA_SRC        *prints destination mode/register
               BRA    prep
@@ -1038,14 +1025,14 @@ FILTER_EA_MODE
             BNE INVALID_MODE
     RTS
 
-INVALID_EA       *ARD,ARI
+INVALID_EA       *ARD,ARI ****************************************
 *Display error accordingly
     MOVE.L  #$30303030,D1
     MOVE.B  #3,D0
     TRAP    #15
     RTS
 
-INVALID_MODE    *PCD,PCI
+INVALID_MODE    *PCD,PCI   *************************************
     MOVE.L  #$30303030,D1
     MOVE.B  #3,D0
     TRAP    #15
@@ -1053,15 +1040,13 @@ INVALID_MODE    *PCD,PCI
 
 *An
 
-ADDRESS_MODE
-*Get register to get what Dn to go to
+ADDRESS_MODE  *Get register to get what Dn to go to
     CLR.B  D3
     ROL.L  #3,D3
     BRA    PRINT_INNER_An
 
 * Dn
-DATA_REGISTER
-    *Get register to get what Dn to go to
+DATA_REGISTER    *Get register to get what Dn to go to
     CLR.B  D3
     ROL.L  #3,D3
     
@@ -1083,9 +1068,7 @@ DR_CMP  CMPI.B #0, D3
         BEQ PRINT_D7
     
 * (An)
-CLOSED_PARAN
-    
-    *Get register to get what Dn to go to
+CLOSED_PARAN  *Get register to get what Dn to go to
     CLR.B  D3
     ROL.L  #3,D3
     *Prints '('
@@ -1147,9 +1130,7 @@ POSTFIX_PLUS
     RTS
     
 *-(An)
-PREFIX_MINUS
-    *parse for 
-    CLR.B  D3
+PREFIX_MINUS   CLR.B  D3
     ROL.L  #3,D3
     
      *Prints '-'
@@ -1177,7 +1158,7 @@ PREFIX_MINUS
 WORD_MODE  MOVEM.L  D1,-(SP)      *save calling state of D1
            CLR.L    D1
            *ADDA     #word_len,A5  *increment the pointer to the next address by the length of the next WORD fetched from memory
-           MOVE.L   (A5)+,A0      *move that word value to A0 for display
+           MOVE.W   (A5)+,A0      *move that word value to A0 for display
            JSR      hex_2_ascii   *convert/display the word
            MOVEM.L  (SP)+,D1      *restore D1
            RTS
@@ -1219,9 +1200,9 @@ long_data_handler *ADDA     #long_len,A5
 
 data_mode_print   LEA      imm_sign, A1    *load and print '#' character
                   MOVE.B   #14, D0
-                  TRAP     #15   
-                  MOVE.B   #3,D0        *print the immediate data in D1
-                  TRAP     #15 
+                  TRAP     #15  
+                  MOVE.L   D1,A0
+                  JSR      hex_2_ascii  *print the hex data
                   MOVEM.L  (SP)+,D1     *restore D1
                   RTS
 
@@ -1380,33 +1361,35 @@ disp_instr    MOVEM.L D1, -(SP)     *save state of D1 before using it below
 
 h2a_regs        REG     D1/D3-D6/A0/A4
 
-hex_2_ascii     MOVEM   h2a_regs,-(SP)  *save state of registers before call                                
+hex_2_ascii     MOVEM.L h2a_regs,-(SP)  *save state of registers before call                                
                 CLR.L   D5              *clear iteration counter
+                CLR.L   D1
+                CLR.L   D6
                 MOVE.L  A0,D4
-                MOVE.W  D4,D3
+                MOVE.L  D4,D3
                 CLR.W   D4
                 SWAP    D3
                 LEA     string_tbl,A4
 h2a_prep        ROL.L   #4,D4           *roll first byte over for analysis
-h2a_loop        CMP.B   1(A4,D6.W),D4
+h2a_loop        CMP.B   1(A4,D6.W),D4   *find hex/ascii match in table
                 BEQ     h2a_match   
                 ADDI    #2,D6
                 BRA     h2a_loop        
-h2a_match       MOVE.B  (A4,D6.W),D1
-                MOVE.B  #6,D0
+h2a_match       MOVE.B  (A4,D6.W),D1    *move the match to D1
+                MOVE.B  #6,D0           *display the value in D1
                 TRAP    #15
                 CLR.B   D4
                 CLR.B   D6
-                ADDI    #1,D5
-                CMP.B   #h2a_its,D5
+                ADDI    #1,D5           *increment loop counter
+                CMP.B   #h2a_its,D5     *have we done every nibble
                 BGE     h2a_ret
-                CMP.B   #h2a_its-4,D5
+                CMP.B   #h2a_its-4,D5   *are we halfway done (time to get second part of addr?)
                 BEQ     h2a_swap
                 BRA     h2a_prep
 h2a_swap        MOVE.L  D3,D4           *move second part of word to D4                
                 BRA     h2a_prep
 
-h2a_ret         MOVEM   (SP)+,h2a_regs   *restore state of registers 
+h2a_ret         MOVEM.L  (SP)+,h2a_regs   *restore state of registers 
                 RTS
                 
 h2a_its         EQU     8
@@ -1591,6 +1574,8 @@ done_msg      DC.B    'done',0
 
 
               END     start
+
+
 
 
 
