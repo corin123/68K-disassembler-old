@@ -44,7 +44,7 @@ test_0100           MOVE.B #255,D3                      ; max Byte size
                     MOVEA.W $600,A4
                     MOVEA.L $600,A5
                     
-                    * ORI # < data > , < ea >
+                    * MOVEM # < data > , < ea >
                     * Size = (Byte, Word, Long)         ; only need Word, Long
                     MOVEM
 

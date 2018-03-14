@@ -41,18 +41,31 @@ test_0101           MOVE.B #255,D3                      ; max Byte size
                     MOVE.L #4294967295,D5               ; max Long size
                     MOVE.L #2147483646,D6
                     
-                    MOVEA.W $600,A4
-                    MOVEA.L $600,A5
+                    MOVEA.W #$600,A4
+                    MOVEA.L #$600,A5
                     
-                    * SUBQ
-                    * Size = ()                         ; only need Word, Long
-                    SUBQ
+                    * SUBQ # < data >, < ea >
+                    * Size = (Byte, Word, Long)         ; only need Word, Long
+                    SUBQ.W #5,D4
+                    SUBQ.W #5,A4
+                    MOVEA.W #start,A4
+                    SUBQ.W #5,(A4)
+                    SUBQ.W #5,-(A4)
+                    SUBQ.W #6,(A4)+
+
+                    SUBQ.L #5,D5
+                    SUBQ.L #5,A5
+                    MOVEA.L #start,A5
+                    SUBQ.L #5,(A5)
+                    SUBQ.L #5,-(A5)
+                    SUBQ.L #6,(A5)+
                     
                     SIMHALT                                     ; halt simulator
 
 * Put variables and constants here
 
                     END             START                       ; last line of source
+
 
 
 
