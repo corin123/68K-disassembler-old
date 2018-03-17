@@ -1,0 +1,37 @@
+00000600 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/16/2018 4:12:08 PM
+
+00000600                             1  START ORG $600
+00000600                             2  
+00000600  D870 4006                  3        ADD.W (6,A0,D4),D4
+00000604  D0C0                       4        add.w d0,a0
+00000606  D088                       5        add.l a0,d0
+00000608  D048                       6        add.w a0,d0
+0000060A  D0C8                       7        add.w a0,a0
+0000060C                             8  
+0000060C  0690 0098967F              9        add.l #9999999,(a0)
+00000612  0651 0493                 10        add #$493,(a1)
+00000616  0661 0493                 11        add #$493,-(a1)
+0000061A  5A40                      12        add #5,d0
+0000061C  5A40                      13        add.w #5,d0
+0000061E  5A80                      14        add.l #5,d0
+00000620  D078 0001                 15        add  %01,d0
+00000624                            16  
+Line 17 ERROR: Invalid size code
+00000624  D0C0                      17        add.b d0,a0
+Line 18 ERROR: Invalid size code
+00000626  D048                      18        add.b a0,d0   *invalid size
+Line 19 ERROR: Invalid addressing mode
+00000628                            19        add    d0,#5
+00000628                            20  
+00000628                            21        END START
+
+3 errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+START               600

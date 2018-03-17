@@ -1,7 +1,7 @@
 *-----------------------------------------------------------------------------------------------
 *                                  Disassembler program
 *                                      Winter 2018
-*     Description: A program to disassemble selected instructions from the Motorola 68k IS
+* Description: A program to disassemble selected instructions from the Motorola 68k IS opcodes
 *                         
 *                          Sean Coulter, Corin Ennis, Antony Mbugua
 *-----------------------------------------------------------------------------------------------            
@@ -10,21 +10,18 @@ CR         EQU   $0D
 LF         EQU   $0A
 stack      EQU   $7000
 start_addr EQU   $1000
-              
+           
 start      ORG     start_addr             
               
- *----------------*display starting information for user, capture start and end addresses, error check on addresses------------------------------
+*----------------*display starting information for user, capture start and end addresses, error check on addresses------------------------------
 *----------------for each ascii character the user enters, if that character is outside [30,40) (40,46], its an invalid character---------------
     *A2: points to starting address
     *A3: points to ending address
     *A4: points to ascii/hex string table
     
-    *D1: sentinel exit value
-    *D2: index of MSB
     *D3: holds the next byte of the user starting address
+    *D3: holds length of user input
     *D4: offset of string table value
-    *D6: ascii value holding MSB
-    *D7: max valid input
 
               LEA     stack, SP         *put the stack in the stack pointer
               
@@ -111,8 +108,6 @@ end_addr      CLR.L   D1
 *A4: pointer to hex_1 table and bcc_tbl
 *D1: holds the next hex to be read in instruction
 *D2: holds the instruction
-
-
               
               CLR      D4                 *register used in address calculation
               CLR      D7                 *register used for address calculation
@@ -610,17 +605,19 @@ cmp_handler         MOVE.L   CMP,INST_NAME
 
 divsw_handler   MOVE.L DIV,INST_NAME
                 MOVE.W S,INST_NAME_EXT
-divsw_beg       LSR.B  #1,D1        *get rid of hardcoded bit
+divsw_beg       JSR    disp_instr
+                LSR.B  #1,D1        *get rid of hardcoded bit
                 CLR.L  D2           *clear space in D2
-                MOVE.B D1,D2        *save Dn operation register to D2
-                MOVE.L D2,D3        *get them into D3 for next function
-                JSR    DR_CMP       *print the data register
-                JSR    print_comma
+                MOVE.B D1,D2        *save Dn destination register to D2
+                MOVE.L D2,D4        *get them into D4 for use after next function call
                 CLR.B  D1
                 LSL.L  #2,D1        *Shift out size bits--we already know its a word
                 ROL.L  #3,D1        *D1 now holds the EA bits
                 MOVE.L D1,D3        *and move them to D3
-                JSR    EA_SRC_beg
+                JSR    EA_SRC_beg   *print source EA info
+                JSR    print_comma
+                MOVE.L D4,D3        *move the destination register bits to D3 for next call
+                JSR    DR_CMP       *print the data register
                 BRA    prep
 
 * /divsw_handler
@@ -635,11 +632,11 @@ divsw_beg       LSR.B  #1,D1        *get rid of hardcoded bit
 
 muls_handler      CLR.B   D1
                   ROL.L   #4,D1             *get the next hex digit after 0xC
-                  LSR.B   #1,D1
-                  BCC     inv_handler       *unsupported opcode
                   MOVE.L  D1,D2
+                  LSR.B   #1,D2
+                  BCC     inv_handler       *unsupported opcode
                   CLR.B   D2
-                  ROL.B   #2,D2             *get the size bits of the operation
+                  ROL.L   #2,D2             *get the size bits of the operation
                   CMP.B   #3,D2
                   BNE     inv_handler       *unsupported if size code != 11 at this point
                   MOVE.L  MUL,INST_NAME     *now were sure its muls
@@ -718,6 +715,8 @@ addq_handler      MOVE.L  ADD,INST_NAME
 *D1 holds instruction info, then EA info (mode & reg)
 *D2: holds the size of the operation (b,w,l)
 
+*size bits also indicate the size of immediate data after the instruction
+
 cmpi_handler       MOVE.L   CMP,INST_NAME
                    MOVE.B   I,INST_NAME_EXT
                    CLR.B    D1
@@ -729,21 +728,23 @@ cmpi_handler       MOVE.L   CMP,INST_NAME
                    BEQ      cmpi_word
                    CMP.B    #2,D4
                    BEQ      cmpi_long
-cmpi_byte          MOVE.L   SIZEB,SIZECODE
+cmpi_byte          MOVE.L   SIZEB,SIZECODE      *indicate the operation is a byte
                    MOVE.B   #0,(A2)
                    BRA      cmpi_ret
-cmpi_word          MOVE.L   SIZEW,SIZECODE
-                   MOVE.B   #1,(A2)
+cmpi_word          MOVE.L   SIZEW,SIZECODE      *indicate the operation is a word
+                   MOVE.B   #1,(A2)      
                    BRA      cmpi_ret
-cmpi_long          MOVE.L   SIZEL,SIZECODE   
-                   MOVE.B   #2,(A2)            
-cmpi_ret           JSR      disp_instr
+cmpi_long          MOVE.L   SIZEL,SIZECODE      *indicate the operation is a long
+                   MOVE.B   #2,(A2)  
+cmpi_ret           ADDA     #word_len,A5        *set pointer to next word- all data in cmpi is either next word or next 2 words(long)
+                   JSR      disp_instr
                    CLR.B    D1
                    JSR      DATA_MODE           *determine and print the immediate data based on size
+                   CMP.B    #2,(A2)
                    ROL.L    #3,D1               *isolate EA info in D1
                    MOVE.L   D1,D3
                    JSR      print_comma
-                   JSR      EA_SRC_beg
+                   JSR      EA_SRC              *obtain and print the destination information
                    BRA      prep
                    
 * /cmpi_handler
@@ -766,8 +767,8 @@ bclr_static       ROL.L     #2,D1          *get 2 more bits-- are we sure its BC
                   MOVE.L    D1,D3
                   ADDA      #word_len,A5   *get the trailing immediate data
                   CLR.L     D1
-                  MOVE.W    (A5),D1        *move it to D1
-                  JSR       DATA_MODE       *and print it
+                  *MOVE.W    (A5),D1        *move it to D1
+                  JSR       DATA_MODE      *and print it
                   SUBA      #word_len,A5   *return to instruction
                   JSR       print_comma
                   JSR       EA_SRC_beg     *print EA dest information
@@ -1227,92 +1228,63 @@ movem_list     JSR     disp_instr
                ADDA    #word_len,A5                 *get to register list word
                MOVE.W  (A5),D5                      *move entire list to D5
                MOVE.B  D5,D6                        *move lower order byte (Dn list) to D6
-               LSR.W   #word_len*4,D5               *shift the An list to the lower order of D5
+               LSR.W   #word_len*4,D5               *shift the An list to the lower order of D5                  
                MOVE.L  #1,D4                        *init loop counter/register number
-               CLR.L   D2                           *clear D2, which is holding first regiester in train
+               CLR.L   D2                           *clear D2, which is holding first register in train
                CLR.L   D3                           *set train counter to 1
                BRA     movem_dn_list_loop           *first take care or the Dn list
    
-movem_dn_list_loop     CMP.B  #word_len*4,D4        *have we done the whole register list - 1
-                       BEQ    movem_dn_last         * yes get the last register bit
+movem_dn_list_loop     CMP.B  #word_len*4,D4        *have we done the register list [d0,d6]?
+                       BEQ    movem_dn_last         * yes get the last register bit (d7)
                        LSR.B  #1,D6                 *shift out a (Dn) bit. 1 if its in the list, 0 if not
                        BCS    movem_dn_list_status_1  *a register was identified--check status of register train
-                       *ADDI   #1,D4                *increment loop/register counter
-                       BRA    movem_dn_list_status_0  *check status
-
-movem_dn_list_status_0 CMP.B  #2,D3
-                       BGT    print_list_intermediate       
-                       CMP.B  #1,D3
-                       BEQ    movem_print_single 
                        ADDI   #1,D4
-                       BRA    movem_dn_list_loop
+                       BRA    movem_dn_list_loop    *check status
                     
-movem_dn_list_status_1 ADDI   #1,D3                                        
-movem_dn_list_status   CMP.B  #0,D2                 *is there currently a first entry in the reg train
-                       BEQ    movem_list_first_entry    * no- add the first reg
-                       ADDI   #1,D4                 *increment loop/register counter
-movem_dn_cont          CMP.B  #1,D3                 *do we have more than one successive register?
-                       BGE    movem_dn_list_loop    * yes- we have a train-- dont need to print intermediate register
-                       BLT    print_list_intermediate   *train ended- print intermediate list's end
- 
-movem_list_first_entry  MOVE.B D4,D2                 *move first register in sublist to D2
-                        SUBI   #1,D2
-                        EXG    D2,D3                 *exchange D2 and D3 contents for next function
-                        JSR    DR_CMP                *print the first register in the list
-                        EXG    D2,D3                 *restore
-                        ADDI   #1,D2
-                        ADDI   #1,D3
-                        *ADDI   #1,D4                 *increment loop/reg counter
-                        BRA    movem_dn_cont         *return to status check
+movem_dn_list_status_1 EXG    D3,D4                 *print appropriate data register corresponding to shifted out bit
+                       SUBI   #1,D3
+                       JSR    DR_CMP
+                       JSR    print_slash
+                       ADDI   #1,D3
+                       EXG    D3,D4
+                       ADDI   #1,D4
+                       BRA    movem_dn_list_loop   *return to the loop                                   
                         
-print_list_intermediate    EXG    D3,D4              *switch reg order for following function
-                           JSR    print_hyphen       *integrate start and end of train
-                           SUBI   #1,D3
-                           JSR    DR_CMP             *print the end of the sublist
-                           JSR    print_slash        *prep new sublist
-                           ADDI   #1,D3
-                           EXG    D3,D4              *restore regs
-                           CLR.B  D3                 *clear train counter
-                           CLR.B  D2                 *clear first register in train
-                           ADDI   #1,D4
-                           BRA    movem_dn_list_loop   *return to loop              
-
-movem_print_single         EXG    D3,D4
-                           SUBI   #1,D3
-                           JSR    DR_CMP             *print the end of the sublist
-                           JSR    print_slash        *prep new sublist
-                           ADDI   #1,D3
-                           EXG    D3,D4              *restore regs
-                           CLR.B  D2
-                           CLR.B  D3
-                           ADDI   #1,D4
-                           BRA    movem_dn_list_loop
-
-                                   
-movem_dn_full              JSR    print_hyphen       *integrate start and end of train 
-                           JSR    PRINT_D7
-                           CLR.L  D4
-                           CLR.L  D3
-                           BRA    movem_an_list_loop                       
-                       
-                       
 movem_dn_last          LSR.B  #1,D6
-
-
-
+                       BCS    movem_d7_print
+                       BRA    movem_an_list_prep
+                        
+movem_d7_print         MOVE.B #7,D3
+                       MOVE.B #1,D0                 *flag d7 as having been printed for next round of An's
+                       JSR    DR_CMP
                        
-movem_an_list_prep     EXG    D4,D3
-                       SUBI   #2,D3
-                       CMP.B  #7,D3
-                       BEQ    movem_dn_full
-                       JSR    DR_CMP                *print last register in Dn register train
-                       CLR.L  D4
-                       CLR.L  D3
-movem_an_list_loop     CMP.B  #word_len*4,D4
-                       *BEQ    movem_print_list
-               
-  
-
+movem_an_list_prep     EXG    D5,D6                 *get higher order (an) byte
+                       MOVE.L #1,D4                 *init loop
+                       CLR.B  D3   
+movem_an_list_loop     CMP.B  #word_len*4,D4        *have we done the register list [d0,d6]?
+                       BEQ    movem_an_last         * yes get the last register bit (d7)
+                       LSR.B  #1,D6                 *shift out a (Dn) bit. 1 if its in the list, 0 if not
+                       BCS    movem_an_list_status_1  *a register was identified--check status of register train
+                       ADDI   #1,D4
+                       BRA    movem_an_list_loop    *check status
+                    
+movem_an_list_status_1 EXG    D3,D4                 *continue in same way as Dn loop
+                       SUBI   #1,D3
+                       JSR    print_slash
+                       JSR    PRINT_INNER_AN
+                       ADDI   #1,D3
+                       EXG    D3,D4
+                       ADDI   #1,D4
+                       BRA    movem_an_list_loop                                      
+                        
+movem_an_last          LSR.B  #1,D6
+                       BCS    movem_a7_print
+                       BRA    movem_ea
+                        
+movem_a7_print         MOVE.B #7,D3
+                       JSR    print_slash
+                       JSR    PRINT_INNER_AN
+              
              
 movem_ea       JSR     print_comma
                CLR.B   D1
@@ -1341,7 +1313,7 @@ rts_handler    CLR.L  D1                    *rts all hardcoded
 
 *below functions also increment address pointer A5 depending on data fetch size for immediate,absolute addresses
 
-EA_SRC_beg  ADDA   #word_len,A5
+EA_SRC_beg  ADDA   #word_len,A5             *increment pointer to next word in address range
 
             *(xxx).W, (xxx).L, #<data>        
 EA_SRC      CMPI.B #$7, D3            *Compares if its 111
@@ -1547,7 +1519,7 @@ DATA_MODE  MOVEM.L  D1,-(SP)        *save calling state of D1
 *byte_data_handler *ADDA     #byte_len,A5
  *                 MOVE.B   (A5)+,D1     *get immediate byte data and increment address by a byte
   *                BRA      data_mode_print
-                  
+                
 word_data_handler *ADDA     #word_len,A5
                   MOVE.W   (A5)+,D1     *get immediate word data and increment address by a word
                   BRA      data_mode_print
@@ -1960,8 +1932,8 @@ nl            DC.B    '',CR,LF,0
 space         DC.B    '    ',0
 
 *below holds intro messages to user                       
-display_start DC.B    'Please enter a maximum 32-bit starting memory address in hex (-1 to quit): ',0
-display_end   DC.B    'Please enter a maximum 32-bit ending memory address in hex (-1 to quit): ',0
+display_start DC.B    'Please enter a maximum 32-bit starting memory address in hex (-1 to quit): ',CR,LF,0
+display_end   DC.B    'Please enter a maximum 32-bit ending memory address in hex (-1 to quit): ',CR,LF,0
 bad_addr      DC.B    'Please enter a valid address',CR,LF,0
 
 
@@ -1975,6 +1947,7 @@ done_msg      DC.B    'done',0
 
 
               END     start
+
 
 
 

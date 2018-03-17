@@ -1,0 +1,105 @@
+00000600 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/14/2018 10:15:34 PM
+
+00000000                             1  * -----------------------------------------------------------------------------
+00000000                             2  * Title      : Test 0010
+00000000                             3  * Written by : Sean Coulter, Corin Ennis, Antony Mbugua
+00000000                             4  * Date       : 
+00000000                             5  * Description: Test MOVE.L, MOVEA.L
+00000000                             6  * -----------------------------------------------------------------------------
+00000000  =0000000D                  7  CR                  EQU             $0D
+00000000  =0000000A                  8  LF                  EQU             $0A
+00000000  =00007000                  9  stack               EQU             $00007000
+00000000                            10  
+00000600                            11  START               ORG             $600       ; first instruction of program
+00000600                            12  
+00000600                            13  * Testing opcodes
+00000600                            14  * 0000 -> ORI, BCLR, CMPI
+00000600                            15  * 0010 -> MOVE.L, MOVEA.L
+00000600                            16  * 0011 -> MOVE.W, MOVEA.W
+00000600                            17  * 0100 -> MOVEM, MULS.L, LEA, NEG, JSR, RTS
+00000600                            18  * 0101 -> SUBQ
+00000600                            19  * 0110 -> Bcc, BRA
+00000600                            20  * 1000 -> DIVS.W, OR
+00000600                            21  * 1001 -> SUB
+00000600                            22  * 1011 -> EOR, CMP
+00000600                            23  * 1100 -> MULS.W
+00000600                            24  * 1101 -> ADD, ADDA
+00000600                            25  * 1110 -> LSL, LSR, ASL, ASR, ROL, ROR
+00000600                            26  * 
+00000600                            27  * Addressing Mode   Mode    Register
+00000600                            28  * Dn                000     reg. number:Dn
+00000600                            29  * An                001     reg. number:An
+00000600                            30  * (An)              010     reg. number:An
+00000600                            31  * (An) +            011     reg. number:An
+00000600                            32  * - (An)            100     reg. number:An
+00000600                            33  * 
+00000600                            34  * Addressing Mode   Mode    Register
+00000600                            35  * (xxx).W           111     000
+00000600                            36  * (xxx).L           111     001
+00000600                            37  * #<data>           111     100
+00000600                            38  * -----------------------------------------------------------------------------
+00000600  78F1                      39  test_0010           MOVE.L #4294967281,D4
+00000602  2A78 0600                 40                      MOVE.L $600,A5
+00000606  287C 00000600             41                      MOVE.L #$600,A4
+0000060C                            42                      * MOVE # < ea > , < ea >
+0000060C                            43                      * Size = (Byte, Word, Long)         ; only need Word, Long
+0000060C  7AFF                      44                      MOVE.L #4294967295,D5               ; #<data>,Dn
+0000060E  2A04                      45                      MOVE.L D4,D5                        ; Dn,Dn
+00000610  2A0C                      46                      MOVE.L A4,D5                        ; An,Dn
+00000612  2A14                      47                      MOVE.L (A4),D5                      ; (An),Dn
+00000614  2A24                      48                      MOVE.L -(A4),D5                     ; -(An),Dn
+00000616  2A1C                      49                      MOVE.L (A4)+,D5                     ; (An)+,Dn
+00000618                            50  
+00000618  2ABC 00000600             51                      MOVE.L #$600,(A5)                   ; #<data>,(An)
+0000061E  2A85                      52                      MOVE.L D5,(A5)                      ; Dn,(An)
+00000620  2A8C                      53                      MOVE.L A4,(A5)                      ; An,(An)
+00000622  2A94                      54                      MOVE.L (A4),(A5)                    ; (An),(An)
+00000624  2AA4                      55                      MOVE.L -(A4),(A5)                   ; -(An),(An)
+00000626  2A9C                      56                      MOVE.L (A4)+,(A5)                   ; (An)+,(An)
+00000628                            57  
+00000628  2B3C 00000600             58                      MOVE.L #$600,-(A5)                  ; #<data>,-(An)
+0000062E  2B05                      59                      MOVE.L D5,-(A5)                     ; Dn,-(An)
+00000630  2B0C                      60                      MOVE.L A4,-(A5)                     ; An,-(An)
+00000632  2B14                      61                      MOVE.L (A4),-(A5)                   ; (An),-(An)
+00000634  2B24                      62                      MOVE.L -(A4),-(A5)                  ; -(An),-(An)
+00000636  2B1C                      63                      MOVE.L (A4)+,-(A5)                  ; (An)+,-(An)
+00000638                            64  
+00000638  2AFC 00000600             65                      MOVE.L #$600,(A5)+                  ; #<data>,(An)+
+0000063E  2AC5                      66                      MOVE.L D5,(A5)+                     ; Dn,(An)+
+00000640  2ACC                      67                      MOVE.L A4,(A5)+                     ; An,(An)+
+00000642  2AD4                      68                      MOVE.L (A4),(A5)+                   ; (An),(An)+
+00000644  2AE4                      69                      MOVE.L -(A4),(A5)+                  ; -(An),(An)+
+00000646  2ADC                      70                      MOVE.L (A4)+,(A5)+                  ; (An)+,(An)+
+00000648                            71  
+00000648                            72                      * MOVEA # < ea > , An
+00000648                            73                      * Size = (Word, Long)               ; only need Word, Long
+00000648  2A7C FFFFFFF1             74                      MOVEA.L #4294967281,A5              ; #<data>,An
+0000064E  2A78 0600                 75                      MOVEA.L $600,A5
+00000652  2A7C 00000600             76                      MOVEA.L #$600,A5
+00000658  2A45                      77                      MOVEA.L D5,A5                       ; Dn,An
+0000065A  2A4C                      78                      MOVEA.L A4,A5                       ; An,An
+0000065C  2A54                      79                      MOVEA.L (A4),A5                     ; (An),An
+0000065E  2C65                      80                      MOVEA.L -(A5),A6                    ; -(An),An
+00000660  2C5D                      81                      MOVEA.L (A5)+,A6                    ; (An)+,An
+00000662                            82  
+00000662                            83                      
+00000662  FFFF FFFF                 84                      SIMHALT                                     ; halt simulator
+00000666                            85  
+00000666                            86  * Put variables and constants here
+00000666                            87  
+00000666                            88                      END             START                       ; last line of source
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+CR                  D
+LF                  A
+STACK               7000
+START               600
+TEST_0010           600

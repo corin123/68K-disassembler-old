@@ -1,0 +1,85 @@
+00000600 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/13/2018 11:37:01 AM
+
+00000600                             1  START ORG $600
+00000600                             2  
+00000600                             3  *D3:SECOND PART TO PRINT
+00000600                             4  *D4:FIRST PART 
+00000600                             5  *D5:holds iteration number
+00000600                             6  *D6:index into table
+00000600                             7  
+00000600                             8  *move A0 into D3 and split first part of address and second part of address to D3 and D4 respectively
+00000600                             9  *
+00000600                            10  
+00000600  D1FC 12345678             11                  ADDA.L  #$12345678,A0
+00000606                            12  
+00000606                            13  hex_2_ascii     *MOVEM   h2a_regs,-(SP)  *save state of registers before call                                
+00000606  4285                      14                  CLR.L   D5              *clear iteration counter
+00000608  2808                      15                  MOVE.L  A0,D4
+0000060A  3604                      16                  MOVE.W  D4,D3
+0000060C  4244                      17                  CLR.W   D4
+0000060E  4843                      18                  SWAP    D3
+00000610  49F9 0000064C             19                  LEA     string_tbl,A4
+00000616  E99C                      20  h2a_prep        ROL.L   #4,D4           *roll first byte over for analysis
+00000618  B834 6001                 21  h2a_loop        CMP.B   1(A4,D6.W),D4
+0000061C  6700 0006                 22                  BEQ     h2a_match   
+00000620  5446                      23                  ADDI    #2,D6
+00000622  60F4                      24                  BRA     h2a_loop        
+00000624  1234 6000                 25  h2a_match       MOVE.B  (A4,D6.W),D1
+00000628  103C 0006                 26                  MOVE.B  #6,D0
+0000062C  4E4F                      27                  TRAP    #15
+0000062E  4204                      28                  CLR.B   D4
+00000630  4206                      29                  CLR.B   D6
+00000632  5245                      30                  ADDI    #1,D5
+00000634  BA3C 0008                 31                  CMP.B   #its,D5
+00000638  6C00 0010                 32                  BGE     h2a_ret
+0000063C  BA3C 0004                 33                  CMP.B   #its-4,D5
+00000640  6700 0004                 34                  BEQ     h2a_swap
+00000644  60D0                      35                  BRA     h2a_prep
+00000646  2803                      36  h2a_swap        MOVE.L  D3,D4           *move second part of word to D4                
+00000648  60CC                      37                  BRA     h2a_prep
+0000064A                            38  
+0000064A                            39   
+0000064A                            40  h2a_ret        * MOVEM   (SP)+,h2a_regs   *restore state of registers 
+0000064A  4E75                      41                  RTS
+0000064C                            42  
+0000064C  =00000004                 43  long_len      equ 4
+0000064C  =00000008                 44  its           equ 8
+0000064C                            45  
+0000064C= 30 00                     46  string_tbl    DC.B    $30,$0      *{ascii,hex}
+0000064E= 31 01                     47                DC.B    $31,$1          
+00000650= 32 02                     48                DC.B    $32,$2 
+00000652= 33 03                     49                DC.B    $33,$3
+00000654= 34 04                     50                DC.B    $34,$4
+00000656= 35 05                     51                DC.B    $35,$5
+00000658= 36 06                     52                DC.B    $36,$6
+0000065A= 37 07                     53                DC.B    $37,$7
+0000065C= 38 08                     54                DC.B    $38,$8
+0000065E= 39 09                     55                DC.B    $39,$9            
+00000660= 41 0A                     56                DC.B    $41,$A
+00000662= 42 0B                     57                DC.B    $42,$B
+00000664= 43 0C                     58                DC.B    $43,$C
+00000666= 44 0D                     59                DC.B    $44,$D
+00000668= 45 0E                     60                DC.B    $45,$E
+0000066A= 46 0F                     61                DC.B    $46,$F
+0000066C                            62  
+0000066C                            63                END START
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+H2A_LOOP            618
+H2A_MATCH           624
+H2A_PREP            616
+H2A_RET             64A
+H2A_SWAP            646
+HEX_2_ASCII         606
+ITS                 8
+LONG_LEN            4
+START               600
+STRING_TBL          64C

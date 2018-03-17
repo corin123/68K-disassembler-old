@@ -36,6 +36,7 @@ stack      EQU   $7000
 
     ORG    $1000
     
+    
 START:        LEA      $600,A5            *start addr (TEST)
               LEA      $700,A6            *end addr (TEST)
               LEA      stack,SP
@@ -132,7 +133,8 @@ _13_handler     ROL.L   #4,D1
 
 *--------------- 
 *--------------- 
-_0_handler      LSR.B #4,D1
+_0_handler      CLR.B D1
+                ROL.L #4,D1
                 CMP.B #0,D1
                 BEQ   ori_handler
                 CMP.B #8,D1
@@ -149,13 +151,14 @@ _11_handler     CLR.B D1
 
 *--------------- 
 *--------------- 
-_8_handler      ROL.L   #4,D1
+_8_handler      CLR.B   D1
+                ROL.L   #4,D1
                 MOVE.L  D1,D2
                 CLR.B   D2
                 ROL.L   #2,D2
                 CMP.B   #3,D2
-               * BEQ     divsw_handler
-               * BRA     or_handler
+                BEQ     divsw_handler       *between or and divs.w, only divs.w can have a size 11
+                BRA     or_handler
                
 *--------------- 
 *--------------- 
@@ -571,7 +574,11 @@ bclr_dynamic      MOVE.L    D1,D2          *copy instruction opcode into D2
 *ori_handler
 *handles ori
 
-ori_handler
+ori_handler       ROL.L    #2,D1           *0 currently occupies the byte, so can immediately roll
+                  MOVE.B   D1,D2           *move size bits to D2
+                  CLR.B    D1
+                  ROL.L    #6,D1
+                  MOVE.B   D1,D3           *save size bits to D3
 
 * /ori_handler
 *-----------------------------------------------------------------------------
@@ -614,12 +621,52 @@ neg_handler       CLR.B    D1              *clear hardcoded bits
 
 *-----------------------------------------------------------------------------
 *jsr_handler
+*handles 'JSR'
 
 jsr_handler       ROL.L   #2,D1
                   CLR.B   D1        *we already know its jsr. get rid of hardcoded bits
                   ROL.L   #6,D1     *save EA bits into D1
 
 * /jsr_handler
+*-----------------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------------
+*or_handler
+*handles 'OR'
+
+or_handler     MOVE.L   D1,D2
+               LSR.B    #1,D2          *shift the direction bit to carry-- D2 now also holds the data register of the operation
+               BCS      or_Dn_right    <ea> OR Dn -> <ea>
+               BRA      or_Dn_left     Dn OR <ea> -> Dn
+               
+or_Dn_right    CLR.B    D1
+               ROL.L    #2,D1
+               MOVE.B   D1,D3          *D3 holds the size of the operation
+               CLR.B    D1
+               ROL.B    #6,D1          *D1 holds the EA bits
+
+or_Dn_left     CLR.B    D1
+               ROL.L    #2,D1
+               MOVE.B   D1,D3          *D3 holds the size of the operation
+               CLR.B    D1
+               ROL.B    #6,D1          *D1 holds the EA bits
+
+
+* /or_handler
+*-----------------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------------
+*divsw_handler
+*handles divsw
+
+divsw_handler   LSR.B  #1,D1        *get rid of hardcoded bit
+                MOVE.B D1,D2        *save Dn number of operation to D2
+                LSL.L  #2,D1        *Shift out size bits--we already know its a word
+                ROL.L  #6,D1        *D1 now holds the EA bits
+
+* /divsw_handler
 *-----------------------------------------------------------------------------
 
 
@@ -770,6 +817,7 @@ nl            DC.B    '',CR,LF,0
 
 _end
               END     start
+
 
 
 

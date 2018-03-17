@@ -1,0 +1,31 @@
+00000600 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/14/2018 2:49:50 PM
+
+00000600                             1  start org $600
+00000600                             2  
+00000600                             3          
+00000600  830B                       4  hi      sbcd -(a3),-(a1)
+00000602  103C 0009                  5          move.b #9,d0
+00000606  8323                       6          or.b D1,-(A3)
+00000608                             7          
+00000608                             8  
+00000608  6600 000E                  9        BNE  done 
+0000060C  6000 FFF2                 10         bra.w hi
+00000610  6500 39EE                 11        bcs   $4000
+00000614  6600 0002                 12        bne done
+00000618                            13      
+00000618                            14  done     
+00000618                            15    
+00000618                            16        end start
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+DONE                618
+HI                  600
+START               600

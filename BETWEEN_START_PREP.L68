@@ -1,0 +1,134 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/12/2018 4:34:08 PM
+
+00000000                             1  *----------------*display starting information for user, capture start and end addresses, error check on addresses------------------------------
+00000000                             2  *----------------for each ascii character the user enters, if that character is outside [30,40) (40,46], its an invalid character---------------
+00000000                             3      *A2: points to starting address
+00000000                             4      *A3: points to ending address
+00000000                             5      *A4: points to ascii/hex string table
+00000000                             6      
+00000000                             7      *D3: holds the next byte of the user starting address
+00000000                             8      *D3: holds length of user input
+00000000                             9      *D4: offset of string table value
+00000000                            10  
+Line 11 ERROR: Undefined symbol
+00000000  4FF9 004DBB8E             11                LEA     stack, SP         *put the stack in the stack pointer
+00000006                            12                
+Line 13 ERROR: Undefined symbol
+00000006  43F9 004DBB8E             13  disp_msg      LEA     display_start,A1  *load intro msg to A1
+0000000C  103C 000E                 14                MOVE.B  #14,D0            *indicate output
+00000010  4E4F                      15                TRAP    #15
+00000012                            16                
+Line 17 ERROR: Undefined symbol
+00000012  49F9 004DBB8E             17                LEA     string_tbl,A4 *load A4 with the string table
+00000018                            18                
+Line 19 ERROR: Undefined symbol
+00000018  43F9 004DBB8E             19                LEA     user_start,A1 *load user input variable address to A1
+0000001E  103C 0002                 20                MOVE.B  #2,D0         *indicate saving user input to loaded variable in A1
+00000022  4E4F                      21                TRAP    #15
+00000024                            22                
+Line 23 ERROR: Undefined symbol
+00000024  3039 004DBB8E             23                MOVE.W  exit_val,D0
+Line 24 ERROR: Undefined symbol
+0000002A  B079 004DBB8E             24                CMP.W   user_start,D0  *did the user want to quit?
+Line 25 ERROR: Undefined symbol
+00000030  6700 BB5C                 25                BEQ     done           * yes-quit
+00000034                            26                
+00000034  B2BC 00000008             27                CMP.L   #8,D1         *is the starting address <= 8 hex digits?
+Line 28 ERROR: Undefined symbol
+0000003A  6E00 BB52                 28                BGT     addr_err      * no-invalid
+0000003E  B2BC 00000000             29                CMP.L   #0,D1         *user didnt type anything
+Line 30 ERROR: Undefined symbol
+00000044  6F00 BB48                 30                BLE     addr_err
+00000048                            31                
+00000048  1601                      32                MOVE.B  D1,D3         *store length of start address (task #2) in D3
+0000004A  4241                      33                CLR     D1            *clear D1 for use in the folllowing subroutine
+0000004C  4EB9 00000058             34                JSR     conversion    *enter loop to convert ascii string to hex
+00000052  DBC7                      35                ADDA.L  D7,A5          *store start address in A5
+00000054  6000 0042                 36                BRA     end_addr      *we've converted the valid string to hex--get the end address now     
+00000058                            37             
+00000058                            38  *********************SUBROUTINE converts user input (ascii) to hex**********************************************
+00000058  4287                      39  conversion    CLR.L  D7
+0000005A  3C7C 0000                 40                MOVEA  #0,A6         *clear the address register being used to store the conversion data
+0000005E                            41                
+0000005E  1419                      42  get_next_byte MOVE.B (A1)+,D2      *move next byte of input address to D2
+00000060  4244                      43                CLR    D4            *reset index offset in string table
+00000062  5303                      44                SUBI.B #1,D3         *decrement the loop counter (length of user string)
+00000064  B63C 00FF                 45                CMP.B  #-1,D3        *have we converted the whole address?
+00000068  6700 002C                 46                BEQ    end_conv      * yes-return from the subroutine
+0000006C  6000 0002                 47                BRA    char_convert  * no-convert the next character from ascii -> hex
+00000070                            48                
+00000070  B434 4000                 49  char_convert  CMP.B   (A4,D4.W),D2 *compare this byte with the next value in string table
+00000074  6700 000E                 50                BEQ     push_byte    *we found the corresponding hex
+00000078  5444                      51                ADDI    #2,D4          *Next index of string table
+0000007A  B83C 001F                 52                CMP.B   #31,D4         *check if we're outside the table (indicates invalid hex input)
+Line 53 ERROR: Undefined symbol
+0000007E  6E00 BB0E                 53                BGT     addr_err       * we're outside the table, so user input character wasn't hex-convertible
+00000082  60EC                      54                BRA     char_convert   *check the next string table value
+00000084                            55                
+00000084  1234 4001                 56  push_byte     MOVE.B 1(A4,D4.W),D1
+00000088  DE81                      57                ADD.L  D1,D7
+0000008A  B63C 0000                 58                CMP.B  #0,D3
+0000008E  6700 0006                 59                BEQ    end_conv
+00000092  E98F                      60                LSL.L  #4,D7
+00000094  60C8                      61                BRA    get_next_byte      
+00000096  4E75                      62  end_conv      RTS
+00000098                            63  ******************************************************************************************************************  
+00000098                            64        
+00000098                            65  *------------------- by this point, the starting address is valid and stored in A5.*--------------------------------
+00000098                            66                
+00000098  4281                      67  end_addr      CLR.L   D1
+Line 68 ERROR: Undefined symbol
+0000009A  43F9 004DBB8E             68                LEA     display_end,A1
+000000A0  103C 000E                 69                MOVE.B  #14,D0        *indicate display
+000000A4  4E4F                      70                TRAP    #15
+000000A6                            71                
+Line 72 ERROR: Undefined symbol
+000000A6  43F9 004DBB8E             72                LEA     user_end,A1
+000000AC  103C 0002                 73                MOVE.B  #2,D0         * trap user ending address   
+000000B0  4E4F                      74                TRAP    #15
+000000B2                            75                
+Line 76 ERROR: Undefined symbol
+000000B2  3039 004DBB8E             76                MOVE.W  exit_val,D0
+Line 77 ERROR: Undefined symbol
+000000B8  B079 004DBB8E             77                CMP.W   user_end,D0  *did the user want to quit?
+Line 78 ERROR: Undefined symbol
+000000BE  6700 BACE                 78                BEQ     done          * yes-quit
+000000C2                            79                
+000000C2  B2BC 00000008             80                CMP.L   #8,D1         *is the starting address 8 hex digits?
+Line 81 ERROR: Undefined symbol
+000000C8  6E00 BAC4                 81                BGT     addr_err      * no-invalid
+000000CC  B2BC 00000000             82                CMP.L   #0,D1         *user didnt type anything
+Line 83 ERROR: Undefined symbol
+000000D2  6F00 BABA                 83                BLE     addr_err
+000000D6                            84                
+000000D6  1601                      85                MOVE.B  D1,D3         *store length of start address (task #2) in D3
+000000D8  4EB8 0058                 86                JSR     conversion    *convert(above) the ending address from ascii to hex
+000000DC  DDC7                      87                ADDA.L  D7,A6         *store end address in A5
+Line 88 ERROR: Undefined symbol
+000000DE  6000 BAAE                 88                BRA     prep          *begin initial steps before parsing data at user address
+000000E2                            89  
+000000E2                            90  *------------------At this point, A5 holds starting address and A6 holds ending address. --------------------------------
+000000E2                            91  *A5: start
+000000E2                            92  *A6: end
+000000E2                            93  *A4: pointer to hex_1 table and bcc_tbl
+000000E2                            94  *D1: holds the next hex to be read in instruction
+000000E2                            95  *D2: holds the instruction
+000000E2                            96  
+Line 97 WARNING: END directive missing, starting address not set
+
+18 errors detected
+1 warning generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+CHAR_CONVERT        70
+CONVERSION          58
+DISP_MSG            6
+END_ADDR            98
+END_CONV            96
+GET_NEXT_BYTE       5E
+PUSH_BYTE           84

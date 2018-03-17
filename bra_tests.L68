@@ -1,0 +1,22 @@
+00000600 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/15/2018 7:01:48 PM
+
+00000600                             1  START       ORG $600
+00000600  6000 FA2E                  2              BRA $30
+00000604  6000 29FA                  3              BRA $3000
+00000608  6000 F9F5                  4              BRA ENGD
+0000060C                             5              
+0000060C                             6  
+0000060C  =FFFFFFFF                  7  ENGD EQU $FFFFFFFF
+0000060C                             8              END START
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+ENGD                FFFFFFFF
+START               600

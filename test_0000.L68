@@ -1,0 +1,112 @@
+00012000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/16/2018 10:16:32 PM
+
+00000000                             1  * -----------------------------------------------------------------------------
+00000000                             2  * Title      : Test 0000
+00000000                             3  * Written by : Sean Coulter, Corin Ennis, Antony Mbugua
+00000000                             4  * Date       : 
+00000000                             5  * Description: Test ORI, BCLR, CMPI
+00000000                             6  * -----------------------------------------------------------------------------
+00000000  =0000000D                  7  CR                  EQU             $0D
+00000000  =0000000A                  8  LF                  EQU             $0A
+00000000  =00007000                  9  stack               EQU             $00007000
+00000000                            10  
+00012000                            11  START               ORG             $12000       ; first instruction of program
+00012000                            12  
+00012000                            13  * Testing opcodes
+00012000                            14  * 0000 -> ORI, BCLR, CMPI
+00012000                            15  * 0010 -> MOVE.L, MOVEA.L
+00012000                            16  * 0011 -> MOVE.W, MOVEA.W
+00012000                            17  * 0100 -> MOVEM, MULS.L, LEA, NEG, JSR, RTS
+00012000                            18  * 0101 -> SUBQ
+00012000                            19  * 0110 -> Bcc, BRA
+00012000                            20  * 1000 -> DIVS.W, OR
+00012000                            21  * 1001 -> SUB
+00012000                            22  * 1011 -> EOR, CMP
+00012000                            23  * 1100 -> MULS.W
+00012000                            24  * 1101 -> ADD, ADDA
+00012000                            25  * 1110 -> LSL, LSR, ASL, ASR, ROL, ROR
+00012000                            26  * 
+00012000                            27  * Addressing Mode   Mode    Register
+00012000                            28  * Dn                000     reg. number:Dn
+00012000                            29  * An                001     reg. number:An
+00012000                            30  * (An)              010     reg. number:An
+00012000                            31  * (An) +            011     reg. number:An
+00012000                            32  * - (An)            100     reg. number:An
+00012000                            33  * 
+00012000                            34  * Addressing Mode   Mode    Register
+00012000                            35  * (xxx).W           111     000
+00012000                            36  * (xxx).L           111     001
+00012000                            37  * #<data>           111     100
+00012000                            38  * -----------------------------------------------------------------------------
+00012000                            39  test_0000           * BCLR Dn, < ea >
+00012000                            40                      * BCLR # < data > , < ea >
+00012000                            41                      * Size = (Byte, Long)
+00012000                            42                      
+00012000  0893 00FF                 43                      BCLR #255,(A3)
+00012004  0793                      44                      BCLR D3,(A3)
+00012006  0B95                      45                      BCLR D5,(A5)
+00012008  0895 00FF                 46                      BCLR #65535,(A5)
+0001200C  089F 00B9                 47                      BCLR #3452345,(SP)+
+00012010  0BA5                      48                      BCLR D5,-(A5)
+00012012  0B9D                      49                      BCLR D5,(A5)+
+00012014                            50  
+00012014                            51                      * CMPI # < data > , < ea >
+00012014                            52                      * Size = (Byte, Word, Long)         ; only need Word,long                 
+00012014                            53                                 
+00012014  0C27 00E7                 54                      CMPI.B #231,-(SP)
+00012018  0C44 FFFF                 55                      CMPI.W #65535,D4
+0001201C  0C54 FFFF                 56                      CMPI.W #65535,(A4)
+00012020  0C64 FFFF                 57                      CMPI.W #65535,-(A4)
+00012024  0C5C FFFF                 58                      CMPI.W #65535,(A4)+
+00012028  0C85 FFFFFFFF             59                      CMPI.L #4294967295,D5
+0001202E  0C95 FFFFFFFF             60                      CMPI.L #4294967295,(A5)
+00012034  0CA5 FFFFFFFF             61                      CMPI.L #4294967295,-(A5)
+0001203A  0C9D FFFFFFFF             62                      CMPI.L #4294967295,(A5)+
+00012040                            63  
+00012040                            64  
+00012040                            65  
+00012040  13F9 25500000 59203941    66                      MOVE.B $25500000,$59203941
+0001204A  367C A400                 67                      movea.w #$a400,a3
+0001204E  163C 00FF                 68                      MOVE.B #255,D3                      ; max Byte size
+00012052  383C FFFF                 69                      MOVE.W #65535,D4                    ; max Word size
+00012056                            70                      *MOVE.L #4294967295,D5               ; max Long size
+00012056                            71                      
+00012056  3878 1000                 72                      MOVEA.W $1000,A4
+0001205A  2A78 1000                 73                      MOVEA.L $1000,A5
+0001205E                            74                      
+0001205E                            75                      * ORI # < data > , < ea >
+0001205E                            76                      * Size = (Byte, Word, Long)         ; only need Word, Long
+0001205E  0044 00FF                 77                      ORI.W #255,D4
+00012062                            78                      *ORI.L #4294967295,D5
+00012062                            79                      
+00012062                            80                      * BCLR Dn, < ea >
+00012062                            81                      * BCLR # < data > , < ea >
+00012062                            82                      * Size = (Byte, Long)
+00012062  0793                      83                      BCLR D3,(A3)
+00012064  0893 0000                 84                      BCLR #256,(A3)
+00012068  0B95                      85                      BCLR D5,(A5)
+0001206A  0895 00FF                 86                      BCLR #65535,(A5)
+0001206E  0BA5                      87                      BCLR D5,-(A5)
+00012070  0B9D                      88                      BCLR D5,(A5)+
+00012072                            89                      
+00012072                            90                      
+00012072  FFFF FFFF                 91                      SIMHALT                                     ; halt simulator
+00012076                            92  
+00012076                            93  * Put variables and constants here
+00012076                            94  
+00012076                            95                      END             START                       ; last line of source
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+CR                  D
+LF                  A
+STACK               7000
+START               12000
+TEST_0000           12000

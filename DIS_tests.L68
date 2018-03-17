@@ -1,0 +1,49 @@
+00000600 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/14/2018 4:34:44 PM
+
+00000000                             1  *-----------------------------------------------------------
+00000000                             2  * Title      :
+00000000                             3  * Written by :
+00000000                             4  * Date       :
+00000000                             5  * Description:
+00000000                             6  *-----------------------------------------------------------
+00000000                             7  *consider:
+00000000                             8        *move.p #43,d3
+00000000                             9        *garbage instruction thats not even encoded
+00000000                            10        *just instruction itself (not encoded)
+00000000                            11        *movea only L,W
+00000000                            12        
+00000600                            13  start org $600
+00000600                            14        
+00000600                            15        *movem d4,(sp)
+Line 16 ERROR: Quick immediate data range must be 1 to 8
+00000600  5043                      16        addq.w   #0,d3
+00000602  5C00                      17        addq.b   #6,d0
+00000604  5043                      18        addq.w   #8,d3
+00000606  5487                      19        addq.l   #2,d7
+00000608  5702                      20        subq.b   #3,d2
+0000060A  5F43                      21        subq.w   #7,d3
+0000060C  5984                      22        subq.l   #4,d4
+0000060E                            23        
+0000060E  203C 00000533             24        move.l   #$533,d0
+00000614  123C 0009                 25        MOVE.B   #9,D1
+00000618  5805                      26        ADD.B #4,D5
+0000061A  3678 4000                 27        movea.w  $4000,a3
+0000061E  8A7C 3019                 28        OR.W #12313,d5
+00000622  BF83                      29        EOR.l     D7,d3
+00000624  2E4B                      30        MOVEA.L A3,A7
+00000626  1883                      31        MOVE.B D3,(A4)
+00000628  8653                      32         OR (A3),D3
+0000062A  8C43                      33         OR D3,D6
+0000062C                            34        
+0000062C                            35        end start
+
+1 error detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+START               600

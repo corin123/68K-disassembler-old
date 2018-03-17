@@ -1,0 +1,130 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 3/6/2018 12:15:22 PM
+
+00000000                             1  * do this:
+00000000                             2  *   move.l  <name>,INST_NAME    and <name> is saved to INST_NAME
+00000000                             3  
+00000000                             4  *   eg  move.l   JSR,INST_NAME
+00000000                             5  
+00000000                             6  *dont do 4 letter words yet
+00000000                             7  
+00000000                             8  
+00000000                             9  
+Line 10 ERROR: Undefined symbol
+00000000  43F9 004DBB8E             10  disp_instr    LEA     addr_sign,A1
+00000006  103C 000E                 11                MOVE.B  #14,D0
+0000000A  4E4F                      12                TRAP    #15
+0000000C                            13                
+0000000C  220D                      14                MOVE.L  A5,D1         *move the address of this instruction into D1
+0000000E  103C 0003                 15                MOVE.B  #3,D0              
+00000012  4E4F                      16                TRAP    #15
+00000014                            17                
+Line 18 ERROR: Undefined symbol
+00000014  43F9 004DBB8E             18                LEA     space,A1
+0000001A  103C 000E                 19                MOVE.B  #14,D0
+0000001E  4E4F                      20                TRAP    #15
+00000020                            21                
+Line 22 ERROR: Undefined symbol
+00000020  43F9 004DBB8E             22                LEA     INST_NAME,A1  *move the (assembly) name of this instruction into A1
+00000026  103C 000E                 23                MOVE.B  #14,D0
+0000002A  4E4F                      24                TRAP    #15
+0000002C                            25                
+Line 26 ERROR: Undefined symbol
+0000002C  43F9 004DBB8E             26                LEA     space,A1
+00000032  103C 000E                 27                MOVE.B  #14,D0
+00000036  4E4F                      28                TRAP    #15
+00000038                            29                
+Line 30 ERROR: Undefined symbol
+00000038  43F9 004DBB8E             30                LEA     OP_NAMES,A1    *move the name of operands into A1
+0000003E  103C 0000                 31                MOVE.B  #0,D0
+00000042  4E4F                      32                TRAP    #15
+00000044                            33                      
+Line 34 ERROR: Undefined symbol
+00000044  6000 BB48                 34                BRA     prep
+00000048                            35  
+00000048                            36  
+00000048                            37  
+00000048= 4D4F5645 00000000         38  MOVE          DC.L    'MOVE',0
+00000050= 4D4F5645 41000000 ...     39  MOVEA         DC.L    'MOVEA',0
+0000005C= 4D4F5645 4D000000 ...     40  MOVEM         DC.L    'MOVEM',0
+00000068= 4C454100 00000000         41  LEA           DC.L    'LEA',0
+00000070= 4E454700 00000000         42  NEG           DC.L    'NEG',0 
+00000078= 4A535200 00000000         43  JSR           DC.L    'JSR',0
+00000080= 52545300 00000000         44  RTS           DC.L    'RTS',0
+00000088= 4E4F5000 00000000         45  NOP           DC.L    'NOP',0
+00000090= 41444400 00000000         46  ADD           DC.L    'ADD',0
+00000098= 41444441 00000000         47  ADDA          DC.L    'ADDA',0
+000000A0= 4F524900 00000000         48  ORI           DC.L    'ORI',0
+000000A8= 42434C52 00000000         49  BCLR          DC.L    'BCLR',0
+000000B0= 434D5049 00000000         50  CMPI          DC.L    'CMPI',0
+000000B8= 454F5200 00000000         51  EOR           DC.L    'EOR',0
+000000C0= 434D5000 00000000         52  CMP           DC.L    'CMP',0
+000000C8= 4C535200 00000000         53  LSR           DC.L    'LSR',0
+000000D0= 4C534C00 00000000         54  LSL           DC.L    'LSL',0
+000000D8= 41535200 00000000         55  ASR           DC.L    'ASR',0
+000000E0= 41534C00 00000000         56  ASL           DC.L    'ASL',0
+000000E8= 524F4C00 00000000         57  ROL           DC.L    'ROL',0
+000000F0= 524F5200 00000000         58  ROR           DC.L    'ROR',0
+000000F8= 42435300 00000000         59  BCS           DC.L    'BCS',0
+00000100= 42474500 00000000         60  BGE           DC.L    'BGE',0
+00000108= 424C5400 00000000         61  BLT           DC.L    'BLT',0
+00000110= 42564300 00000000         62  BVC           DC.L    'BVC',0
+00000118= 42524100 00000000         63  BRA           DC.L    'BRA',0
+00000120= 53554200 00000000         64  SUB           DC.L    'SUB',0
+00000128= 53554251 00000000         65  SUBQ          DC.L    'SUBQ',0
+00000130= 4D554C53 00000000         66  MULS          DC.L    'MULS',0
+00000138= 44495653 00000000         67  DIVS          DC.L    'DIVS',0
+00000140= 4F520000 00000000         68  OR            DC.L    'OR',0
+00000148= 44415441 00000000         69  INV           DC.L    'DATA',0
+00000150                            70                
+00000150= 2E 42 00                  71  SIZEb         DC.B    '.B',0
+00000153= 2E 57 00                  72  SIZEw         DC.B    '.W',0
+00000156= 2E 4C 00                  73  SIZEl         DC.B    '.L',0
+00000159                            74  
+00000159                            75  
+Line 76 WARNING: END directive missing, starting address not set
+
+6 errors detected
+1 warning generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+ADD                 90
+ADDA                98
+ASL                 E0
+ASR                 D8
+BCLR                A8
+BCS                 F8
+BGE                 100
+BLT                 108
+BRA                 118
+BVC                 110
+CMP                 C0
+CMPI                B0
+DISP_INSTR          0
+DIVS                138
+EOR                 B8
+INV                 148
+JSR                 78
+LEA                 68
+LSL                 D0
+LSR                 C8
+MOVE                48
+MOVEA               50
+MOVEM               5C
+MULS                130
+NEG                 70
+NOP                 88
+OR                  140
+ORI                 A0
+ROL                 E8
+ROR                 F0
+RTS                 80
+SIZEB               150
+SIZEL               156
+SIZEW               153
+SUB                 120
+SUBQ                128
