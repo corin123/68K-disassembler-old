@@ -614,6 +614,7 @@ divsw_beg       JSR    disp_instr
                 LSL.L  #2,D1        *Shift out size bits--we already know its a word
                 ROL.L  #3,D1        *D1 now holds the EA bits
                 MOVE.L D1,D3        *and move them to D3
+                MOVE.B #1,(A2)      *indicate word for next call
                 JSR    EA_SRC_beg   *print source EA info
                 JSR    print_comma
                 MOVE.L D4,D3        *move the destination register bits to D3 for next call
@@ -1934,7 +1935,7 @@ space         DC.B    '    ',0
 *below holds intro messages to user                       
 display_start DC.B    'Please enter a maximum 32-bit starting memory address in hex (-1 to quit): ',CR,LF,0
 display_end   DC.B    'Please enter a maximum 32-bit ending memory address in hex (-1 to quit): ',CR,LF,0
-bad_addr      DC.B    'Please enter a valid address',CR,LF,0
+bad_addr      DC.B    'Please enter an even, eight digit hex address',CR,LF,0
 
 
 *below variables store the starting and ending addresses the user provides
@@ -1947,6 +1948,8 @@ done_msg      DC.B    'done',0
 
 
               END     start
+
+
 
 
 
