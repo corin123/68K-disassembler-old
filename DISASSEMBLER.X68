@@ -1,9 +1,9 @@
 *-----------------------------------------------------------------------------------------------
 *                                  Disassembler program
 *                                      Winter 2018
-
-*               Written by : Sean Coulter, Corin Ennis, Antony Mbugua
-*               Description: A program to disassemble Motorola 68K source files
+*     Description: A program to disassemble selected instructions from the Motorola 68k IS
+*                         
+*                          Sean Coulter, Corin Ennis, Antony Mbugua
 *-----------------------------------------------------------------------------------------------            
             
 CR         EQU   $0D
@@ -11,19 +11,35 @@ LF         EQU   $0A
 stack      EQU   $7000
 start_addr EQU   $1000
               
-start         ORG     start_addr             
+start      ORG     start_addr             
               
-              lea     stack,sp
-              adda.l  #$12000,a5
-              adda.l  #$40000,a6
+ *----------------*display starting information for user, capture start and end addresses, error check on addresses------------------------------
+*----------------for each ascii character the user enters, if that character is outside [30,40) (40,46], its an invalid character---------------
+    *A2: points to starting address
+    *A3: points to ending address
+    *A4: points to ascii/hex string table
+    
+    *D1: sentinel exit value
+    *D2: index of MSB
+    *D3: holds the next byte of the user starting address
+    *D4: offset of string table value
+    *D6: ascii value holding MSB
+    *D7: max valid input
+
+              LEA     stack, SP         *put the stack in the stack pointer
+              
+              adda.l #$12000,a5
+              adda.l #$13000,a6
               
               
- *D1: sentinel exit value
- *D2: index of MSB
- *D3: length of user input string
- *D4: index of pointer to string table
- *D6: ascii value holding MSB
- *D7: max valid input
+*------------------At this point, A5 holds starting address and A6 holds ending address. --------------------------------
+*A5: start
+*A6: end
+*A4: pointer to hex_1 table and bcc_tbl
+*D1: holds the next hex to be read in instruction
+*D2: holds the instruction
+
+
               
               CLR      D4                 *register used in address calculation
               CLR      D7                 *register used for address calculation
@@ -39,7 +55,7 @@ prep          CMPA.L   A5,A6              *have we read from start-end?
               MOVEA.L  #0,A1              *clearing variables
               MOVE.L   #0,SIZECODE
               MOVE.L   #0,INST_NAME_EXT
-              *EOR      (A0),(A0)
+              *EOR      D0,D0
               CLR.L    D0
               CLR.L    D1
               CLR.L    D2
@@ -283,7 +299,7 @@ _8_check        CLR.B   D2                  *its OR, DIVS, or SBCD
                 CMP.B   #3,D2
                 BEQ     divsw_handler       *between or and divs.w, only divs.w can have a size 11
                 CLR.B   D2
-                BRA     or_handler
+                BRA     or_handler          *figure out if its OR or SBCD in here
                     
 *---------------
 *--------------- 
@@ -315,7 +331,7 @@ get_data      CMP.B   #6,D1
 *handles 'NOP'
 
 nop_handler   MOVE.L  NOP,INST_NAME 
-              ADDA    #2,A5         *nop took up a word- set A5 to the next instruction
+              ADDA    #word_len,A5         *nop took up a word- set A5 to the next instruction
               JSR     disp_instr
               BRA     prep
 
@@ -537,14 +553,23 @@ divsw_beg       LSR.B  #1,D1        *get rid of hardcoded bit
 * /divsw_handler
 *-----------------------------------------------------------------------------
 
-
+                  
 *-----------------------------------------------------------------------------
 *muls_handler
 * handles 'MULS'
 
 *uses divsw function as layout is similar after first 4 bits
 
-muls_handler      MOVE.L  MUL,INST_NAME
+muls_handler      CLR.B   D1
+                  ROL.L   #4,D1             *get the next hex digit after 0xC
+                  LSR.B   #1,D1
+                  BCC     inv_handler       *unsupported opcode
+                  MOVE.L  D1,D2
+                  CLR.B   D2
+                  ROL.B   #2,D2             *get the size bits of the operation
+                  CMP.B   #3,D2
+                  BNE     inv_handler       *unsupported if size code != 11 at this point
+                  MOVE.L  MUL,INST_NAME     *now were sure its muls
                   MOVE.L  S,INST_NAME_EXT
                   JSR     divsw_beg
 
@@ -833,7 +858,7 @@ bcc_handler   CLR.B   D1
               MOVE.B  D1,D3          *copy condition value to D3
               LEA     bcc_tbl,A4     *A4 now points to the bcc_tbl
 bcc_cond      CMP.B   #-1,(A4)       *have we reached the end of the table
-              BEQ     inv_handler    * yes-invalid branch
+              BEQ     inv_bcc_handler  * yes-invalid branch
               CMP.B   (A4)+,D3       *compare the next table value
               BEQ     bcc_determiner * there's a match
               BRA     bcc_cond       *continue looping through the table
@@ -848,8 +873,20 @@ bcc_determiner  CMP.B  #5,-(a4)      *determine path based on condition code fro
                 BEQ    bvc_handler
                 CMP.B  #0,(a4)
                 BEQ    bra_handler
-                BRA    inv_handler
-
+                CMP.B  #4,(a4)
+                BEQ    bccd_handler
+                CMP.B  #6,(a4)
+                BEQ    bne_handler
+                CMP.B  #7,(a4)
+                BEQ    beq_handler
+                CMP.B  #9,(a4)
+                BEQ    bvs_handler
+                CMP.B  #$E,(a4)
+                BEQ    bgt_handler
+                CMP.B  #$F,(a4)
+                BEQ    ble_handler
+                BRA    inv_bcc_handler      *before displaying unsupported opcode message,advance address pointer
+                                            *to account for known displacement after this unsupported branch
 bcs_handler   MOVE.L  BCS,INST_NAME
               BRA     bcc_dispm
 bge_handler   MOVE.L  BGE,INST_NAME
@@ -859,6 +896,19 @@ blt_handler   MOVE.L  BLT,INST_NAME
 bvc_handler   MOVE.L  BVC,INST_NAME
               BRA     bcc_dispm
 bra_handler   MOVE.L  BRA,INST_NAME
+              BRA     bcc_dispm
+bccd_handler  MOVE.L  BCC,INST_NAME
+              BRA     bcc_dispm
+bne_handler   MOVE.L  BNE,INST_NAME
+              BRA     bcc_dispm
+beq_handler   MOVE.L  BEQ,INST_NAME
+              BRA     bcc_dispm
+bvs_handler   MOVE.L  BVS,INST_NAME
+              BRA     bcc_dispm
+bgt_handler   MOVE.L  BGT,INST_NAME
+              BRA     bcc_dispm
+ble_handler   MOVE.L  BLE,INST_NAME
+              BRA     bcc_dispm
 
 bcc_dispm     MOVE.L  A5,D4            *copy current address to D4
               ADDA    #word_len,A5     *all Bcc instructions took up a word         
@@ -868,9 +918,8 @@ bcc_dispm     MOVE.L  A5,D4            *copy current address to D4
               BEQ     bcc_word_handler * yes- get the following displacement word
               CMP.B   #$F,D1           *are all displacement bits 1?
               BEQ     bcc_long_handler * yes-get the displacement long
-bcc_calc      NOT.L   D1               *ones complement **************** .L OR .w
+bcc_calc      NOT.L   D1               *ones complement
               ADDI.L  #1,D1            *twos complement 
-
               ADDI.B  #2,D4            *account for PC displacement 2 bytes ahead of current address
               SUB.W   D1,D4            *calculate displacement address  ****.L OR .W
               BRA     bcc_complete
@@ -886,7 +935,19 @@ bcc_complete  JSR     disp_instr
               JSR     print_addr_sgn
               JSR     hex_2_ascii
               BRA     prep
-              
+                   
+inv_bcc_handler    CLR.B D1         
+                   ROL.L #8,D1          *get the 8 bit displacement of this unsupported branch
+                   CMP.B #0,D1          *did the branch need a word displacement
+                   BEQ   inv_bcc_word   * branch included a trailing word displacement
+                   CMP.B #$FF,D0        *did the branch need a long displacement
+                   BEQ   inv_bcc_long   * branch included a trailing long displacement
+                   BRA   inv_handler    *branch instruction was self-contained
+inv_bcc_word       ADDA #word_len,A5    *skip over the word displacement
+                   BRA  inv_handler
+inv_bcc_long       ADDA #long_len,A5    *skip over the long displacement
+                   BRA  inv_handler
+
  */bcc_handler            
 *-----------------------------------------------------------------------------
 
@@ -945,7 +1006,7 @@ sr_mem_ret           JSR     disp_instr     *display the instruction (eg 'ASR','
 *its a register shift/roll so D4 holds the register/immediate shift count
 sr_reg               LSL.L   #1,D2          *send i/r bit to carry
                      BCS     sr_reg_type
-                     MOVE.B  #0,D5              *flag operation as register shift on register
+                     MOVE.B  #0,D5              *flag operation as immediate shift on register
                      BRA     sr_reg_type_beg
                      
 sr_reg_type          MOVE.B  #1,D5              *flag operation as register shift on register
@@ -990,7 +1051,11 @@ sr_reg_print_src     MOVE.B  D4,D3              *move source bits to D3
                      CMP.B   #0,D1              *we know source is immediate-- is it 000(= #8)?
                      BEQ     rs_0_shift_handler * yes-load D1 with appropriate dislay data 
 sr_reg_print_imm     *JSR     data_mode_print        *identify and print immediate data
-                     JSR     DATA_MODE
+                     LEA     imm_sign,A1        *load up the pound sign
+                     MOVE.B  #14,D0
+                     TRAP    #15
+                     MOVE.B  #3,D0              *prep the shift count for display
+                     TRAP    #15
                      RTS                      
 sr_reg_print_Dn      JSR     DR_CMP                 *identify and print dest register
                      RTS
@@ -1089,92 +1154,63 @@ movem_list     JSR     disp_instr
                ADDA    #word_len,A5                 *get to register list word
                MOVE.W  (A5),D5                      *move entire list to D5
                MOVE.B  D5,D6                        *move lower order byte (Dn list) to D6
-               LSR.W   #word_len*4,D5               *shift the An list to the lower order of D5
+               LSR.W   #word_len*4,D5               *shift the An list to the lower order of D5                  
                MOVE.L  #1,D4                        *init loop counter/register number
-               CLR.L   D2                           *clear D2, which is holding first regiester in train
+               CLR.L   D2                           *clear D2, which is holding first register in train
                CLR.L   D3                           *set train counter to 1
                BRA     movem_dn_list_loop           *first take care or the Dn list
    
-movem_dn_list_loop     CMP.B  #word_len*4,D4        *have we done the whole register list - 1
-                       BEQ    movem_dn_last         * yes get the last register bit
+movem_dn_list_loop     CMP.B  #word_len*4,D4        *have we done the register list [d0,d6]?
+                       BEQ    movem_dn_last         * yes get the last register bit (d7)
                        LSR.B  #1,D6                 *shift out a (Dn) bit. 1 if its in the list, 0 if not
                        BCS    movem_dn_list_status_1  *a register was identified--check status of register train
-                       *ADDI   #1,D4                *increment loop/register counter
-                       BRA    movem_dn_list_status_0  *check status
-
-movem_dn_list_status_0 CMP.B  #2,D3
-                       BGT    print_list_intermediate       
-                       CMP.B  #1,D3
-                       BEQ    movem_print_single 
                        ADDI   #1,D4
-                       BRA    movem_dn_list_loop
+                       BRA    movem_dn_list_loop    *check status
                     
-movem_dn_list_status_1 ADDI   #1,D3                                        
-movem_dn_list_status   CMP.B  #0,D2                 *is there currently a first entry in the reg train
-                       BEQ    movem_list_first_entry    * no- add the first reg
-                       ADDI   #1,D4                 *increment loop/register counter
-movem_dn_cont          CMP.B  #1,D3                 *do we have more than one successive register?
-                       BGE    movem_dn_list_loop    * yes- we have a train-- dont need to print intermediate register
-                       BLT    print_list_intermediate   *train ended- print intermediate list's end
- 
-movem_list_first_entry  MOVE.B D4,D2                 *move first register in sublist to D2
-                        SUBI   #1,D2
-                        EXG    D2,D3                 *exchange D2 and D3 contents for next function
-                        JSR    DR_CMP                *print the first register in the list
-                        EXG    D2,D3                 *restore
-                        ADDI   #1,D2
-                        ADDI   #1,D3
-                        *ADDI   #1,D4                 *increment loop/reg counter
-                        BRA    movem_dn_cont         *return to status check
+movem_dn_list_status_1 EXG    D3,D4
+                       SUBI   #1,D3
+                       JSR    DR_CMP
+                       JSR    print_slash
+                       ADDI   #1,D3
+                       EXG    D3,D4
+                       ADDI   #1,D4
+                       BRA    movem_dn_list_loop                                      
                         
-print_list_intermediate    EXG    D3,D4              *switch reg order for following function
-                           JSR    print_hyphen       *integrate start and end of train
-                           SUBI   #1,D3
-                           JSR    DR_CMP             *print the end of the sublist
-                           JSR    print_slash        *prep new sublist
-                           ADDI   #1,D3
-                           EXG    D3,D4              *restore regs
-                           CLR.B  D3                 *clear train counter
-                           CLR.B  D2                 *clear first register in train
-                           ADDI   #1,D4
-                           BRA    movem_dn_list_loop   *return to loop              
-
-movem_print_single         EXG    D3,D4
-                           SUBI   #1,D3
-                           JSR    DR_CMP             *print the end of the sublist
-                           JSR    print_slash        *prep new sublist
-                           ADDI   #1,D3
-                           EXG    D3,D4              *restore regs
-                           CLR.B  D2
-                           CLR.B  D3
-                           ADDI   #1,D4
-                           BRA    movem_dn_list_loop
-
-                                   
-movem_dn_full              JSR    print_hyphen       *integrate start and end of train 
-                           JSR    PRINT_D7
-                           CLR.L  D4
-                           CLR.L  D3
-                           BRA    movem_an_list_loop                       
-                       
-                       
 movem_dn_last          LSR.B  #1,D6
-
-
-
+                       BCS    movem_d7_print
+                       BRA    movem_an_list_prep
+                        
+movem_d7_print         MOVE.B #7,D3
+                       MOVE.B #1,D0                 *flag d7 as having been printed for next round of An's
+                       JSR    DR_CMP
                        
-movem_an_list_prep     EXG    D4,D3
-                       SUBI   #2,D3
-                       CMP.B  #7,D3
-                       BEQ    movem_dn_full
-                       JSR    DR_CMP                *print last register in Dn register train
-                       CLR.L  D4
-                       CLR.L  D3
-movem_an_list_loop     CMP.B  #word_len*4,D4
-                       *BEQ    movem_print_list
-               
-  
-
+movem_an_list_prep     EXG    D5,D6                 *get higher order (an) byte
+                       MOVE.L #1,D4                 *init loop
+                       CLR.B  D3   
+movem_an_list_loop     CMP.B  #word_len*4,D4        *have we done the register list [d0,d6]?
+                       BEQ    movem_an_last         * yes get the last register bit (d7)
+                       LSR.B  #1,D6                 *shift out a (Dn) bit. 1 if its in the list, 0 if not
+                       BCS    movem_an_list_status_1  *a register was identified--check status of register train
+                       ADDI   #1,D4
+                       BRA    movem_an_list_loop    *check status
+                    
+movem_an_list_status_1 EXG    D3,D4
+                       SUBI   #1,D3
+                       JSR    print_slash
+                       JSR    PRINT_INNER_AN
+                       ADDI   #1,D3
+                       EXG    D3,D4
+                       ADDI   #1,D4
+                       BRA    movem_an_list_loop                                      
+                        
+movem_an_last          LSR.B  #1,D6
+                       BCS    movem_a7_print
+                       BRA    movem_ea
+                        
+movem_a7_print         MOVE.B #7,D3
+                       JSR    print_slash
+                       JSR    PRINT_INNER_AN
+              
              
 movem_ea       JSR     print_comma
                CLR.B   D1
@@ -1193,6 +1229,7 @@ movem_ea       JSR     print_comma
 rts_handler    CLR.L  D1                    *rts all hardcoded
                MOVE.L RTS,INST_NAME
                JSR    disp_instr
+               ADDA   #word_len,A5          *rts took up a word
                BRA    prep
 
 * /rts_handler
@@ -1621,6 +1658,7 @@ h2a_its         EQU     8
 
 * /hex_2_ascii
 *----------------------------------------------------------------------------------------- 
+* the following functions print characters commonly used by this program
 
 print_comma   MOVEM.L A1,-(SP)
               LEA     comma,A1
@@ -1666,7 +1704,7 @@ addr_err      LEA     bad_addr,A1   *load the error msg into A1
               MOVE.B  #14,D0        *indicate output
               TRAP    #15
               CLR.L   D2            *reset msb index for further iterations
-             * BRA     disp_msg      *go back to welcome msg
+              *BRA     disp_msg      *go back to welcome msg
                          
 fatal_err     LEA     imm_sign,A1   *load the error msg into A1
               MOVE.B  #14,D0       *indicate output
@@ -1711,7 +1749,7 @@ hex_1         DC.B    $01,$01  * 'MOVE.B','MOVEA.B'
               DC.B    $00,$01  * 'ORI','BCLR','CMPI','ADDI','EORI','SUBI'
               DC.B    $0B,$01  * 'EOR','CMP'
               DC.B    $0E,$00  * 'LSR','LSL','ASR','ASL','ROL','ROR' (determined in shift_roll_handler)
-              DC.B    $06,$00  * Bcc('BCS','BGE','BLT','BVC','BRA')
+              DC.B    $06,$00  * Bcc('BCS','BGE','BLT','BVC','BRA','BCC','BNE','BEQ','BVS','BGT','BLE')
               DC.B    $09,$00  * 'SUB','SUBA' (determined in sub_handler)
               DC.B    $05,$01  * 'SUBQ','ADDQ'
               DC.B    $0C,$00  * 'MULS'
@@ -1743,6 +1781,12 @@ BGE           DC.L    'BGE',0
 BLT           DC.L    'BLT',0
 BVC           DC.L    'BVC',0
 BRA           DC.L    'BRA',0
+BCC           DC.L    'BCC',0
+BNE           DC.L    'BNE',0
+BEQ           DC.L    'BEQ',0
+BVS           DC.L    'BVS',0
+BGT           DC.L    'BGT',0
+BLE           DC.L    'BLE',0
 SUB           DC.L    'SUB',0
 MUL           DC.L    'MUL',0
 DIV           DC.L    'DIV',0
@@ -1778,7 +1822,13 @@ bcc_tbl       DC.B    %0101 *BCS
               DC.B    %1100 *BGE
               DC.B    %1101 *BLT
               DC.B    %1000 *BVC
-              DC.B    %0000 *BRA     
+              DC.B    %0000 *BRA  
+              DC.B    %0100 *BCC
+              DC.B    %0110 *BNE
+              DC.B    %0111 *BEQ
+              DC.B    %1001 *BVS
+              DC.B    %1110 *BGT
+              DC.B    %1111 *BLE   
               DC.B    -1    *invalid branch type
               
 *below holds shift counts for arithmetic/logical shifts
@@ -1823,6 +1873,8 @@ done_msg      DC.B    'done',0
 
 
               END     start
+
+
 
 
 
