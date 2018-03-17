@@ -67,10 +67,7 @@ check_first   CMP.B   (A4)+,D1            *compare with the next value in the he
                 
 inv_handler   MOVE.L  DAT,INST_NAME
               MOVE.L  A,INST_NAME_EXT
-              *MOVE.B  #12,D5
-              *ROL.L   D5,D1             *line up rest of the instruction
               JSR     disp_instr
-              *MOVE.L  D1,A0
               MOVE.L  A3,A0
               JSR     hex_2_ascii       *convert/display the unsupported opcode
               ADDA    #word_len,A5
@@ -190,9 +187,10 @@ _4_resolve    MOVE.L  D1,D2            *make a full copy to D2
               LSR.B   #1,D2            *lea and movem differentiated by current MSB        
               BCS     lea_resolve      * carry set- lea or unsupported
               BRA     movem_resolve    * carry not set-movem or unsupported
-lea_resolve   ROL.L   #2,D2            *lea is unique in bits d8 to d6. use previous copy D2
-              LSL.B   #5,D2            *shift out 0 pad and remaining An bits
-              CMP.B   #$E0,D2          *is result 11100000?
+lea_resolve   CLR.B   D2
+              ROL.L   #2,D2            *lea is unique in bits d8 to d6. use previous copy D2
+              LSL.B   #6,D2            *shift out 0 pad and remaining An bits
+              CMP.B   #$C0,D2          *is result 11000000?
               BEQ     lea_handler      * lea
               BRA     inv_handler      * unsupported
 movem_resolve ROL.L   #1,D4
@@ -1587,13 +1585,13 @@ hex_2_ascii     MOVEM.L h2a_regs,-(SP)  *save state of registers before call
                 CLR.L   D1
                 CLR.L   D6
                 MOVE.L  A0,D4           *save address in D4
-                MOVE.L  D4,D3           *and move it toD3
-                CLR.W   D4              *partition the first and second long of the address
-                SWAP    D3
+                MOVE.L  D4,D3           *and move it to D3
+                CLR.W   D4              
+                SWAP    D3              *partition the first and second long of the address
+                CLR.W   D3
 h2a_prep        LEA.L   string_tbl,A4
                 ROL.L   #4,D4           *roll first byte over for analysis
-h2a_loop       * move.b  1(a4,d6.l),d0
-                CMP.B   1(A4,D6.L),D4   *find hex/ascii match in table
+h2a_loop        CMP.B   1(A4,D6.L),D4   *find hex/ascii match in table
                 BEQ     h2a_match
                 cmp.b   #32,d6
                 BGE     h2a_f 
