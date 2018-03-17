@@ -8,7 +8,7 @@ CR                  EQU             $0D
 LF                  EQU             $0A
 stack               EQU             $00007000
 
-START               ORG             $600       ; first instruction of program
+START               ORG             $12000       ; first instruction of program
 
 * Testing opcodes
 * 0000 -> ORI, BCLR, CMPI
@@ -41,38 +41,54 @@ test_0100           MOVE.B #255,D3                      ; max Byte size
                     MOVE.L #4294967295,D5               ; max Long size
                     MOVE.L #2147483646,D6
                     
-                    MOVEA.W $600,A4
-                    MOVEA.L $600,A5
+                    MOVE.L #3425345,D7
                     
-                    * MOVEM # < data > , < ea >
-                    * Size = (Byte, Word, Long)         ; only need Word, Long
-                    MOVEM
+                    MOVEA.W $12000,A4
+                    MOVEA.L $12000,A5
+                    
+                    * MOVEM < list > , < ea >
+                    * MOVEM < ea > , < list >
+                    * Size = (Word, Long)               ; only need Word, Long
+                    MOVEM.W A4-A5,(A6)
+                    MOVEM.W D3/A5,(A6)
+                    MOVEA.W $12000,A5
+                    MOVEM.W A4,(A5)
+                    MOVEM.W A5,-(A5)
+                    
+                    MOVEM.L A4-A5,(A6)
+                    MOVEM.L D3/A5,(A6)
+                    MOVEA.L $12000,A5
+                    MOVEM.L A4,(A5)
+                    MOVEM.L A5,-(A5)
 
                     * ORI # < data > , < ea >
                     * Size = (Byte, Word, Long)         ; only need Word, Long
-                    MULS.L
+                    ;MULS.L
 
                     * ORI # < data > , < ea >
                     * Size = (Byte, Word, Long)         ; only need Word, Long
-                    LEA
+                    ;LEA
 
                     * ORI # < data > , < ea >
                     * Size = (Byte, Word, Long)         ; only need Word, Long
-                    NEG
+                    ;NEG
 
                     * ORI # < data > , < ea >
                     * Size = (Byte, Word, Long)         ; only need Word, Long
-                    JSR
+                    ;JSR
 
                     * ORI # < data > , < ea >
                     * Size = (Byte, Word, Long)         ; only need Word, Long
-                    RTS
+                    ;RTS
                     
                     SIMHALT                                     ; halt simulator
 
 * Put variables and constants here
 
                     END             START                       ; last line of source
+
+
+
 
 
 

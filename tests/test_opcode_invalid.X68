@@ -41,8 +41,8 @@ test_invalid        MOVE.B #255,D3                      ; max Byte size
                     MOVE.L #4294967295,D5               ; max Long size
                     MOVE.L #2147483646,D6
                     
-                    MOVEA.W $600,A4
-                    MOVEA.L $600,A5
+                    MOVEA.W $12000,A4
+                    MOVEA.L $12000,A5
                     
                     * 
                     * Size = ()                         ; only need Word, Long
@@ -53,6 +53,7 @@ test_invalid        MOVE.B #255,D3                      ; max Byte size
 * Put variables and constants here
 
                     END             START                       ; last line of source
+
 
 
 
